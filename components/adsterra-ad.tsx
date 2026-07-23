@@ -33,11 +33,44 @@ export default function AdsterraAd({ type, codeSnippet }: AdsterraAdProps) {
   useEffect(() => {
     if (activeSnippet && containerRef.current) {
       containerRef.current.innerHTML = '';
-      const range = document.createRange();
-      const fragment = range.createContextualFragment(activeSnippet);
-      containerRef.current.appendChild(fragment);
+      
+      const width = type === 'banner_728x90' ? '728px' : '300px';
+      const height = type === 'banner_728x90' ? '90px' : '250px';
+
+      const iframe = document.createElement('iframe');
+      iframe.style.width = width;
+      iframe.style.height = height;
+      iframe.style.border = 'none';
+      iframe.style.overflow = 'hidden';
+      iframe.style.background = 'transparent';
+      iframe.setAttribute('scrolling', 'no');
+
+      containerRef.current.appendChild(iframe);
+
+      try {
+        const doc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <style>
+                  body { margin: 0; padding: 0; overflow: hidden; background: transparent; display: flex; justify-content: center; align-items: center; }
+                </style>
+              </head>
+              <body>
+                ${activeSnippet}
+              </body>
+            </html>
+          `);
+          doc.close();
+        }
+      } catch (err) {
+        console.error('Error populating Adsterra iframe:', err);
+      }
     }
-  }, [activeSnippet]);
+  }, [activeSnippet, type]);
 
   if (type === 'banner_728x90') {
     return (
