@@ -29,6 +29,7 @@ export default function RewardedAdModal({
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [adClickTime, setAdClickTime] = useState<number | null>(null);
   const [isWaitingForReturn, setIsWaitingForReturn] = useState(false);
+  const [hasLeftTab, setHasLeftTab] = useState(false);
   const [directLinkUrl, setDirectLinkUrl] = useState<string>('');
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function RewardedAdModal({
       setCurrentStep(1);
       setAdClickTime(null);
       setIsWaitingForReturn(false);
+      setHasLeftTab(false);
       return;
     }
 
@@ -50,48 +52,55 @@ export default function RewardedAdModal({
     loadDirectLink();
   }, [isOpen]);
 
-  // Tab Return Listener (Handles 5-second minimum stay verification)
+  // Tab Return Listener (Handles 3-second minimum stay verification)
   useEffect(() => {
     if (!isOpen || !isWaitingForReturn || !adClickTime) return;
 
-    const handleReturn = () => {
-      if (document.hidden) return;
-
-      const elapsedMs = Date.now() - adClickTime;
-      const elapsedSec = elapsedMs / 1000;
-
-      setIsWaitingForReturn(false);
-      setAdClickTime(null);
-
-      if (elapsedSec < 5) {
-        alert(
-          "⚠️ Vous avez quitté la page publicitaire trop rapidement !\n\nVeuillez rester au moins 5 secondes sur la page sponsor ouverte avant de revenir sur Zora pour valider l'étape."
-        );
+    const handleVisibilityChange = () => {
+      // Mark that user has actually left Zora tab
+      if (document.hidden) {
+        setHasLeftTab(true);
         return;
       }
 
-      // Valid stay (>= 5 seconds)
-      if (currentStep === 1) {
-        setCurrentStep(2);
-      } else if (currentStep === 2) {
-        setCurrentStep(3);
+      // User came back to Zora tab! Ensure they actually left first
+      if (!document.hidden && hasLeftTab) {
+        const elapsedMs = Date.now() - adClickTime;
+        const elapsedSec = elapsedMs / 1000;
+
+        setIsWaitingForReturn(false);
+        setHasLeftTab(false);
+        setAdClickTime(null);
+
+        if (elapsedSec < 3) {
+          alert(
+            "⚠️ Vous avez quitté la page publicitaire trop rapidement !\n\nVeuillez rester au moins 3 secondes sur la page sponsor ouverte avant de revenir sur Zora pour valider l'étape."
+          );
+          return;
+        }
+
+        // Valid stay (>= 3 seconds)
+        if (currentStep === 1) {
+          setCurrentStep(2);
+        } else if (currentStep === 2) {
+          setCurrentStep(3);
+        }
       }
     };
 
-    window.addEventListener('focus', handleReturn);
-    document.addEventListener('visibilitychange', handleReturn);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', handleReturn);
-      document.removeEventListener('visibilitychange', handleReturn);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isOpen, isWaitingForReturn, adClickTime, currentStep]);
+  }, [isOpen, isWaitingForReturn, adClickTime, hasLeftTab, currentStep]);
 
   if (!isOpen) return null;
 
   const handleOpenAd = () => {
     const url = directLinkUrl || 'https://www.effectivecpmnetwork.com/';
     setAdClickTime(Date.now());
+    setHasLeftTab(false);
     setIsWaitingForReturn(true);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -164,7 +173,7 @@ export default function RewardedAdModal({
             <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
             <div className="leading-tight">
               <span className="font-bold block mb-0.5">Instruction importante :</span>
-              Restez au moins 5 secondes sur l'onglet sponsor ouvert, puis fermez-le et revenez ici pour valider l'étape.
+              Restez au moins 3 secondes sur l'onglet sponsor ouvert, puis fermez-le et revenez ici pour valider l'étape.
             </div>
           </div>
         )}
@@ -179,7 +188,7 @@ export default function RewardedAdModal({
               {isWaitingForReturn ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
-                  <span>En attente de retour (rester 5s)...</span>
+                  <span>En attente de retour (rester 3s)...</span>
                 </>
               ) : (
                 <>
@@ -198,7 +207,7 @@ export default function RewardedAdModal({
               {isWaitingForReturn ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
-                  <span>En attente de retour (rester 5s)...</span>
+                  <span>En attente de retour (rester 3s)...</span>
                 </>
               ) : (
                 <>
