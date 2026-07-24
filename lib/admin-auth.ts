@@ -1,42 +1,37 @@
-export const ADMIN_USERNAME = 'a63k';
-export const ADMIN_PASSWORD = '@Adam2009@';
-const SESSION_KEY = 'zora_admin_auth_session';
+export async function authenticateAdminServer(user: string, pass: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
 
-export function authenticateAdmin(user: string, pass: string): boolean {
-  if (user === ADMIN_USERNAME && pass === ADMIN_PASSWORD) {
-    if (typeof window !== 'undefined') {
-      const sessionData = {
-        authenticated: true,
-        user: ADMIN_USERNAME,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
-    }
-    return true;
+    const data = await res.json();
+    return { success: data.success, error: data.error };
+  } catch (err) {
+    return { success: false, error: 'Erreur réseau lors de la connexion.' };
   }
-  return false;
 }
 
-export function isAdminAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false;
+export async function checkAdminAuthServer(): Promise<boolean> {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return false;
-    const session = JSON.parse(raw);
-    if (session && session.authenticated && session.user === ADMIN_USERNAME) {
-      // 24 hour session expiration
-      if (Date.now() - session.timestamp < 24 * 60 * 60 * 1000) {
-        return true;
-      }
-    }
-    return false;
+    const res = await fetch('/api/admin/check', { method: 'GET', cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.authenticated);
   } catch (err) {
     return false;
   }
 }
 
-export function logoutAdmin(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(SESSION_KEY);
-  }
+export async function logoutAdminServer(): Promise<void> {
+  try {
+    await fetch('/api/admin/logout', { method: 'POST' });
+  } catch (err) {}
 }
+
+// Backward compatibility helper
+export function isAdminAuthenticated(): boolean {
+  return false;
+}
+

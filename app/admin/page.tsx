@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { authenticateAdmin, isAdminAuthenticated, logoutAdmin } from '@/lib/admin-auth';
+import { authenticateAdminServer, checkAdminAuthServer, logoutAdminServer } from '@/lib/admin-auth';
 import { fetchMediaDetails, fetchSeasonDetails, getTMDBImageUrl, TMDBItem } from '@/lib/tmdb';
 import { getAllMediaLinks, saveMediaLink, deleteMediaLink, getAdsterraConfig, saveAdsterraConfig } from '@/lib/store';
 import { MediaLink } from '@/lib/supabase';
@@ -9,9 +9,11 @@ import { Shield, Lock, Film, Tv, Plus, Trash2, ExternalLink, Play, CheckCircle2,
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Form states for adding/editing stream link
   const [tmdbIdInput, setTmdbIdInput] = useState('');
@@ -39,7 +41,13 @@ export default function AdminPage() {
   const [isSavingAdsterra, setIsSavingAdsterra] = useState(false);
 
   useEffect(() => {
-    setIsAuthenticated(isAdminAuthenticated());
+    async function verifySession() {
+      setIsCheckingAuth(true);
+      const isOk = await checkAdminAuthServer();
+      setIsAuthenticated(isOk);
+      setIsCheckingAuth(false);
+    }
+    verifySession();
   }, []);
 
   useEffect(() => {
@@ -80,19 +88,23 @@ export default function AdminPage() {
     setTimeout(() => setAdsterraSuccess(''), 4000);
   };
 
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    if (authenticateAdmin(usernameInput, passwordInput)) {
+    setIsLoggingIn(true);
+
+    const res = await authenticateAdminServer(usernameInput, passwordInput);
+    setIsLoggingIn(false);
+
+    if (res.success) {
       setIsAuthenticated(true);
     } else {
-      setLoginError('Nom d\'utilisateur ou mot de passe incorrect.');
+      setLoginError(res.error || 'Nom d\'utilisateur ou mot de passe incorrect.');
     }
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
+  const handleLogout = async () => {
+    await logoutAdminServer();
     setIsAuthenticated(false);
   };
 
@@ -151,6 +163,18 @@ export default function AdminPage() {
     }
   };
 
+  /* Auth Checking Screen */
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center py-12 px-4">
+        <div className="flex items-center gap-3 text-purple-400 font-bold text-sm">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          <span>Vérification de la session admin sécurisée...</span>
+        </div>
+      </div>
+    );
+  }
+
   /* Login Screen */
   if (!isAuthenticated) {
     return (
@@ -184,7 +208,7 @@ export default function AdminPage() {
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Identifiant admin"
+                placeholder="Ex: a63k"
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                 required
               />
@@ -206,9 +230,17 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-zora-gradient hover:opacity-95 text-white font-bold text-sm shadow-xl shadow-purple-500/30 transition-all"
+              disabled={isLoggingIn}
+              className="w-full py-3 rounded-xl bg-zora-gradient hover:opacity-95 text-white font-bold text-sm shadow-xl shadow-purple-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              Se Connecter
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Vérification...</span>
+                </>
+              ) : (
+                <span>Se Connecter</span>
+              )}
             </button>
           </form>
         </div>
