@@ -72,14 +72,14 @@ export default function RewardedAdModal({
         setHasLeftTab(false);
         setAdClickTime(null);
 
-        if (elapsedSec < 3) {
+        if (elapsedSec < 2) {
           alert(
-            "⚠️ Vous avez quitté la page publicitaire trop rapidement !\n\nVeuillez rester au moins 3 secondes sur la page sponsor ouverte avant de revenir sur Zora pour valider l'étape."
+            "⚠️ Vous avez quitté la page publicitaire trop rapidement !\n\nVeuillez rester au moins 2 secondes sur la page sponsor ouverte avant de revenir sur Zora pour valider l'étape."
           );
           return;
         }
 
-        // Valid stay (>= 3 seconds)
+        // Valid stay (>= 2 seconds)
         if (currentStep === 1) {
           setCurrentStep(2);
         } else if (currentStep === 2) {
@@ -173,7 +173,7 @@ export default function RewardedAdModal({
             <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
             <div className="leading-tight">
               <span className="font-bold block mb-0.5">Instruction importante :</span>
-              Restez au moins 3 secondes sur l'onglet sponsor ouvert, puis fermez-le et revenez ici pour valider l'étape.
+              Restez au moins 2 secondes sur l'onglet sponsor ouvert, puis fermez-le et revenez ici pour valider l'étape.
             </div>
           </div>
         )}
@@ -188,7 +188,7 @@ export default function RewardedAdModal({
               {isWaitingForReturn ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
-                  <span>En attente de retour (rester 3s)...</span>
+                  <span>En attente de retour (rester 2s)...</span>
                 </>
               ) : (
                 <>
@@ -207,7 +207,7 @@ export default function RewardedAdModal({
               {isWaitingForReturn ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
-                  <span>En attente de retour (rester 3s)...</span>
+                  <span>En attente de retour (rester 2s)...</span>
                 </>
               ) : (
                 <>
