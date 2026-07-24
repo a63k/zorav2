@@ -25,22 +25,6 @@ export default function AdsterraAd({ type, codeSnippet }: AdsterraAdProps) {
       } else if (type === 'banner_300x250' && config.banner_300x250) {
         setActiveSnippet(config.banner_300x250);
       }
-
-      // Inject Popunder script globally if configured
-      if (config.popunder && typeof document !== 'undefined' && !document.getElementById('adsterra-popunder-script')) {
-        try {
-          const range = document.createRange();
-          const fragment = range.createContextualFragment(config.popunder);
-          const scriptTag = fragment.querySelector('script');
-          if (scriptTag) {
-            const newScript = document.createElement('script');
-            newScript.id = 'adsterra-popunder-script';
-            if (scriptTag.src) newScript.src = scriptTag.src;
-            if (scriptTag.innerHTML) newScript.innerHTML = scriptTag.innerHTML;
-            document.head.appendChild(newScript);
-          }
-        } catch (e) {}
-      }
     }
     loadConfig();
   }, [type, codeSnippet]);
