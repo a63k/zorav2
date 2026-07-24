@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Navbar from '@/components/navbar';
 import Footer from '@/components/footer';
+import AnnounceBanner from '@/components/announce-banner';
 
 export const metadata: Metadata = {
   title: 'Zora - Streaming Films & Séries HD',
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className="dark">
       <body className="bg-zora-bg text-gray-100 min-h-screen flex flex-col antialiased selection:bg-purple-500 selection:text-white">
+        <AnnounceBanner />
         <Navbar />
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
           {children}

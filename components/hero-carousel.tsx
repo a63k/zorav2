@@ -77,13 +77,21 @@ export default function HeroCarousel({ items }: HeroCarouselProps) {
           </p>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-4 pt-2">
+          <div className="flex items-center gap-3 pt-3">
             <Link
               href={`/watch/${mediaType}/${current.id}`}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-zora-gradient hover:opacity-90 text-white font-bold text-sm shadow-xl shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all"
+              className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-sm shadow-xl shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all"
             >
               <Play className="w-5 h-5 fill-white" />
-              <span>Regarder Maintenant</span>
+              <span>Regarder</span>
+            </Link>
+
+            <Link
+              href={`/watch/${mediaType}/${current.id}`}
+              className="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-sm backdrop-blur-md transition-all hover:scale-105"
+            >
+              <Info className="w-4 h-4 text-purple-300" />
+              <span>Voir la fiche</span>
             </Link>
           </div>
 

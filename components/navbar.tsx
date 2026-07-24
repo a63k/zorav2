@@ -104,6 +104,15 @@ export default function Navbar() {
             </div>
           </Link>
 
+          {/* Nakastream-style Center Navigation Menu */}
+          <nav className="hidden xl:flex items-center gap-5 text-xs font-bold text-gray-300">
+            <Link href="/" className="hover:text-purple-300 transition-colors">Catalogue</Link>
+            <Link href="/#trending" className="hover:text-purple-300 transition-colors">Extraits</Link>
+            <Link href="/#genres" className="hover:text-purple-300 transition-colors">Wishboard</Link>
+            <button onClick={() => setHistoryModalOpen(true)} className="hover:text-purple-300 transition-colors">Watchlist</button>
+            <Link href="/#genres" className="hover:text-purple-300 transition-colors">Calendrier</Link>
+          </nav>
+
           {/* Search Bar */}
           <div className="flex-1 max-w-md relative" ref={searchRef}>
             <div className="relative">
