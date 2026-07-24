@@ -24,6 +24,8 @@ export default function AdsterraAd({ type, codeSnippet }: AdsterraAdProps) {
         setActiveSnippet(config.banner_728x90);
       } else if (type === 'banner_300x250' && config.banner_300x250) {
         setActiveSnippet(config.banner_300x250);
+      } else if (type === 'native') {
+        setActiveSnippet(config.banner_728x90 || config.banner_300x250);
       }
     }
     loadConfig();
