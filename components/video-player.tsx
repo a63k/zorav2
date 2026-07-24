@@ -67,6 +67,20 @@ export default function VideoPlayer({
     setShowAdModal(false);
   };
 
+  // Auto-start playback as soon as the stream is unlocked
+  useEffect(() => {
+    if (isUnlocked && videoRef.current) {
+      const promise = videoRef.current.play();
+      if (promise !== undefined) {
+        promise
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            // Browser autoplay policy fallback
+          });
+      }
+    }
+  }, [isUnlocked, mp4Url]);
+
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (isPlaying) {
@@ -189,6 +203,9 @@ export default function VideoPlayer({
           <video
             ref={videoRef}
             src={mp4Url}
+            autoPlay
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
             onTimeUpdate={handleTimeUpdate}
             onEnded={() => setIsPlaying(false)}
             className="w-full h-full object-contain cursor-pointer"
