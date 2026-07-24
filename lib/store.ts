@@ -240,6 +240,7 @@ export async function getAdsterraConfig(): Promise<AdsterraConfig> {
     banner_728x90: '',
     banner_300x250: '',
     popunder: '',
+    directlink: '',
     enabled: true,
   };
 }

@@ -34,6 +34,7 @@ export default function AdminPage() {
   const [adsterra728, setAdsterra728] = useState('');
   const [adsterra300, setAdsterra300] = useState('');
   const [adsterraPopunder, setAdsterraPopunder] = useState('');
+  const [adsterraDirectLink, setAdsterraDirectLink] = useState('');
   const [adsterraSuccess, setAdsterraSuccess] = useState('');
   const [isSavingAdsterra, setIsSavingAdsterra] = useState(false);
 
@@ -58,6 +59,7 @@ export default function AdminPage() {
     setAdsterra728(config.banner_728x90 || '');
     setAdsterra300(config.banner_300x250 || '');
     setAdsterraPopunder(config.popunder || '');
+    setAdsterraDirectLink(config.directlink || '');
   }
 
   const handleSaveAdsterra = async (e: React.FormEvent) => {
@@ -69,6 +71,7 @@ export default function AdminPage() {
       banner_728x90: adsterra728,
       banner_300x250: adsterra300,
       popunder: adsterraPopunder,
+      directlink: adsterraDirectLink,
       enabled: true,
     });
 
@@ -579,6 +582,19 @@ export default function AdminPage() {
                 value={adsterraPopunder}
                 onChange={(e) => setAdsterraPopunder(e.target.value)}
                 placeholder='<script type="text/javascript" src="//pl12345.highcpmgate.com/..."></script>'
+                className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-mono text-gray-200 focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                Adsterra SmartLink / DirectLink URL (Pour le Pass Vidéo 2 Étapes)
+              </label>
+              <input
+                type="url"
+                value={adsterraDirectLink}
+                onChange={(e) => setAdsterraDirectLink(e.target.value)}
+                placeholder="https://www.highcpmgate.com/xxxxx..."
                 className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-mono text-gray-200 focus:outline-none focus:border-purple-500"
               />
             </div>

@@ -44,6 +44,7 @@ export interface AdsterraConfig {
   banner_728x90?: string;
   banner_300x250?: string;
   popunder?: string;
+  directlink?: string;
   enabled?: boolean;
 }
 
