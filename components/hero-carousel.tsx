@@ -100,28 +100,43 @@ export default function HeroCarousel({ items }: HeroCarouselProps) {
 
       {/* Carousel Navigation Buttons */}
       <button
-        onClick={() => setCurrentIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1))}
-        className="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/40 hover:bg-purple-600/80 border border-white/10 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setCurrentIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1));
+        }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-purple-600 border border-white/20 text-white backdrop-blur-md z-30 opacity-70 group-hover:opacity-100 transition-all hover:scale-110 cursor-pointer shadow-xl"
+        aria-label="Diapositive précédente"
       >
         <ChevronLeft className="w-6 h-6" />
       </button>
 
       <button
-        onClick={() => setCurrentIndex((prev) => (prev + 1) % items.length)}
-        className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/40 hover:bg-purple-600/80 border border-white/10 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setCurrentIndex((prev) => (prev + 1) % items.length);
+        }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-purple-600 border border-white/20 text-white backdrop-blur-md z-30 opacity-70 group-hover:opacity-100 transition-all hover:scale-110 cursor-pointer shadow-xl"
+        aria-label="Diapositive suivante"
       >
         <ChevronRight className="w-6 h-6" />
       </button>
 
       {/* Slide Indicators */}
-      <div className="absolute bottom-4 right-6 z-10 flex items-center gap-1.5">
+      <div className="absolute bottom-4 right-6 z-30 flex items-center gap-1.5">
         {items.slice(0, 8).map((_, idx) => (
           <button
             key={idx}
-            onClick={() => setCurrentIndex(idx)}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentIndex(idx);
+            }}
+            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
               idx === currentIndex ? 'w-8 bg-purple-500' : 'w-2 bg-white/30 hover:bg-white/60'
             }`}
+            aria-label={`Aller à la diapositive ${idx + 1}`}
           />
         ))}
       </div>
