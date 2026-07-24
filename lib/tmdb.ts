@@ -88,7 +88,9 @@ export async function fetchPopularTVShows(): Promise<TMDBItem[]> {
 
 export async function fetchMediaDetails(id: number | string, mediaType: 'movie' | 'tv'): Promise<TMDBItem | null> {
   try {
-    const res = await fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${TMDB_API_KEY}&language=fr-FR`);
+    const res = await fetch(`${BASE_URL}/${mediaType}/${id}?api_key=${TMDB_API_KEY}&language=fr-FR`, {
+      next: { revalidate: 3600 },
+    });
     if (!res.ok) throw new Error(`Failed to fetch ${mediaType} details`);
     const data = await res.json();
     return { ...data, media_type: mediaType };
@@ -100,7 +102,9 @@ export async function fetchMediaDetails(id: number | string, mediaType: 'movie' 
 
 export async function fetchSeasonDetails(tvId: number | string, seasonNumber: number): Promise<{ episodes: TMDBEpisodeInfo[] } | null> {
   try {
-    const res = await fetch(`${BASE_URL}/tv/${tvId}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=fr-FR`);
+    const res = await fetch(`${BASE_URL}/tv/${tvId}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=fr-FR`, {
+      next: { revalidate: 3600 },
+    });
     if (!res.ok) throw new Error('Failed to fetch season details');
     const data = await res.json();
     return data;

@@ -94,6 +94,8 @@ export default function TopTenSection({ items, title = "TOP 10 de la Semaine" }:
                   src={getTMDBImageUrl(item.poster_path, 'w500')}
                   alt={titleText}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 {/* Dark Gradient Overlay */}

@@ -26,6 +26,7 @@ export default function MediaCard({ item, hasCustomStream }: MediaCardProps) {
           alt={title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           loading="lazy"
+          decoding="async"
         />
 
         {/* Hover Gradient & Play Icon */}
