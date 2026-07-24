@@ -19,7 +19,22 @@ export function getWatchHistory(): WatchHistoryItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const items: WatchHistoryItem[] = JSON.parse(raw);
+
+    // Deduplicate items by tmdbId & mediaType (keeps most recent update)
+    const seen = new Set<string>();
+    const deduplicated: WatchHistoryItem[] = [];
+
+    for (const item of items) {
+      const key = `${item.tmdbId}_${item.mediaType}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push({ ...item, id: key });
+      }
+    }
+
+    return deduplicated;
   } catch (e) {
     return [];
   }
@@ -45,7 +60,7 @@ export function saveWatchProgress(item: {
   const history = getWatchHistory();
   const s = item.season ?? 1;
   const e = item.episode ?? 1;
-  const id = `${item.tmdbId}_${item.mediaType}_${item.mediaType === 'tv' ? `${s}_${e}` : '0'}`;
+  const id = `${item.tmdbId}_${item.mediaType}`;
 
   const percentage = item.duration > 0 ? Math.min(100, Math.round((item.currentTime / item.duration) * 100)) : 0;
 
@@ -64,15 +79,12 @@ export function saveWatchProgress(item: {
     updatedAt: new Date().toISOString(),
   };
 
-  const existingIdx = history.findIndex((h) => h.id === id);
-  if (existingIdx >= 0) {
-    history[existingIdx] = newItem;
-  } else {
-    history.unshift(newItem);
-  }
+  // Remove existing entry for the same media title if present
+  const updatedHistory = history.filter((h) => h.tmdbId !== item.tmdbId || h.mediaType !== item.mediaType);
+  updatedHistory.unshift(newItem);
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
     window.dispatchEvent(new Event('zora_history_updated'));
   }
 
