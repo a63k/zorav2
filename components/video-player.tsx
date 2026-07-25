@@ -41,6 +41,14 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  const isIframeEmbed = Boolean(
+    mp4Url &&
+      (mp4Url.includes('iframe.mediadelivery.net') ||
+        mp4Url.includes('/embed/') ||
+        mp4Url.includes('embed') ||
+        !mp4Url.toLowerCase().endsWith('.mp4'))
+  );
+
   // Check saved session token on load or when season/episode changes
   useEffect(() => {
     const storageKey = `zora_token_${tmdbId}_${mediaType}_${season || 1}_${episode || 1}`;
@@ -69,7 +77,7 @@ export default function VideoPlayer({
 
   // Auto-start playback as soon as the stream is unlocked
   useEffect(() => {
-    if (isUnlocked && videoRef.current) {
+    if (isUnlocked && videoRef.current && !isIframeEmbed) {
       const promise = videoRef.current.play();
       if (promise !== undefined) {
         promise
@@ -79,7 +87,7 @@ export default function VideoPlayer({
           });
       }
     }
-  }, [isUnlocked, mp4Url]);
+  }, [isUnlocked, mp4Url, isIframeEmbed]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -156,6 +164,8 @@ export default function VideoPlayer({
     );
   }
 
+  const iframeSrcUrl = mp4Url.includes('?') ? `${mp4Url}&autoplay=true` : `${mp4Url}?autoplay=true`;
+
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl group">
       
@@ -183,7 +193,7 @@ export default function VideoPlayer({
             <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
               Protection Rewarded Ad Zora
             </span>
-            <h3 className="text-xl font-black text-white">Lecture Vérouillée</h3>
+            <h3 className="text-xl font-black text-white">Lecture Déverrouillée</h3>
             <p className="text-xs text-gray-400">
               Ce contenu nécessite de compléter une publicité Rewarded pour débloquer le lecteur vidéo et obtenir votre clé d'accès unique.
             </p>
@@ -197,8 +207,19 @@ export default function VideoPlayer({
             <span>Débloquer le Lecteur HD</span>
           </button>
         </div>
+      ) : isIframeEmbed ? (
+        /* Unlocked Bunny Stream Iframe Player */
+        <div ref={containerRef} className="relative w-full aspect-video bg-black flex items-center justify-center">
+          <iframe
+            src={iframeSrcUrl}
+            title={title}
+            className="w-full h-full border-0"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+            allowFullScreen
+          />
+        </div>
       ) : (
-        /* Unlocked HTML5 Video Player */
+        /* Unlocked Direct HTML5 Video Player */
         <div ref={containerRef} className="relative w-full aspect-video bg-black flex items-center justify-center group/player">
           <video
             ref={videoRef}
