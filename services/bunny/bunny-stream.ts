@@ -161,4 +161,33 @@ export class BunnyStreamService {
       encodeProgress: data.encodeProgress || (status === 'finished' ? 100 : 50),
     };
   }
+
+  /**
+   * List all existing videos already uploaded to Bunny Stream Library
+   */
+  public async listLibraryVideos(): Promise<{ guid: string; title: string; length?: number }[]> {
+    if (!this.isConfigured()) return [];
+
+    try {
+      const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos?itemsPerPage=100`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          AccessKey: this.apiKey,
+          accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.items || []).map((item: any) => ({
+        guid: item.guid,
+        title: item.title,
+        length: item.length,
+      }));
+    } catch (err) {
+      console.error('Error fetching Bunny Stream library videos:', err);
+      return [];
+    }
+  }
 }
