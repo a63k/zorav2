@@ -102,7 +102,7 @@ export class ImportOrchestrator {
     if (job.guid) {
       // Video is ALREADY uploaded on Bunny Stream!
       bunnyVidId = job.guid;
-      bunnyLibId = process.env.BUNNY_STREAM_LIBRARY_ID || '713081';
+      bunnyLibId = this.bunnyService.getLibraryId() || '713081';
       ImportQueueService.updateJob(job.id, {
         status: 'encoding',
         progress: 80,

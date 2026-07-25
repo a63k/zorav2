@@ -29,6 +29,10 @@ export class BunnyStreamService {
     return Boolean(this.apiKey && this.libraryId);
   }
 
+  public getLibraryId(): string {
+    return this.libraryId;
+  }
+
   /**
    * Create video entry in Bunny Stream Library
    */
