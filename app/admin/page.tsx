@@ -5,7 +5,8 @@ import { authenticateAdminServer, checkAdminAuthServer, logoutAdminServer } from
 import { fetchMediaDetails, fetchSeasonDetails, getTMDBImageUrl, TMDBItem } from '@/lib/tmdb';
 import { getAllMediaLinks, saveMediaLink, deleteMediaLink, getAdsterraConfig, saveAdsterraConfig } from '@/lib/store';
 import { MediaLink } from '@/lib/supabase';
-import { Shield, Lock, Film, Tv, Plus, Trash2, ExternalLink, Play, CheckCircle2, AlertCircle, RefreshCw, LogOut, Settings } from 'lucide-react';
+import { Shield, Lock, Film, Tv, Plus, Trash2, ExternalLink, Play, CheckCircle2, AlertCircle, RefreshCw, LogOut, Settings, CloudUpload } from 'lucide-react';
+import ImportManager from '@/components/admin/import-manager';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -30,7 +31,7 @@ export default function AdminPage() {
 
   // List of all stream mappings
   const [streamLinks, setStreamLinks] = useState<MediaLink[]>([]);
-  const [activeTab, setActiveTab] = useState<'streams' | 'adsterra'>('streams');
+  const [activeTab, setActiveTab] = useState<'streams' | 'import' | 'adsterra'>('streams');
 
   // Adsterra Configuration State
   const [adsterra728, setAdsterra728] = useState('');
@@ -273,7 +274,18 @@ export default function AdminPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Gestion des Liens MP4
+              Liens MP4 Manuels
+            </button>
+            <button
+              onClick={() => setActiveTab('import')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'import'
+                  ? 'bg-zora-gradient text-white shadow-md'
+                  : 'text-purple-300 hover:text-white'
+              }`}
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>Importateur Automatique</span>
             </button>
             <button
               onClick={() => setActiveTab('adsterra')}
@@ -558,6 +570,8 @@ export default function AdminPage() {
           </div>
 
         </div>
+      ) : activeTab === 'import' ? (
+        <ImportManager />
       ) : (
         /* Adsterra Configuration Tab */
         <div className="max-w-3xl mx-auto bg-zora-card border border-white/10 rounded-3xl p-8 space-y-6 shadow-2xl">

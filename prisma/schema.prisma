@@ -1,0 +1,142 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum MediaType {
+  MOVIE
+  TV
+}
+
+enum JobStatus {
+  PENDING
+  HASHING
+  TMDB_LOOKUP
+  AWAITING_CONFIRMATION
+  UPLOADING
+  ENCODING
+  COMPLETED
+  FAILED
+  PAUSED
+}
+
+model MediaLink {
+  id              String   @id @default(uuid())
+  tmdbId          Int      @map("tmdb_id")
+  mediaType       String   @map("media_type")
+  seasonNumber    Int?     @map("season_number")
+  episodeNumber   Int?     @map("episode_number")
+  title           String
+  posterPath      String?  @map("poster_path")
+  backdropPath    String?  @map("backdrop_path")
+  mp4Url          String   @map("mp4_url")
+  fileHash        String?  @map("file_hash")
+  bunnyLibraryId  String?  @map("bunny_library_id")
+  bunnyVideoId    String?  @map("bunny_video_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([tmdbId, mediaType, seasonNumber, episodeNumber], name: "unique_media_target")
+  @@map("media_links")
+}
+
+model Movie {
+  id            String    @id @default(uuid())
+  tmdbId        Int       @unique @map("tmdb_id")
+  title         String
+  originalTitle String?   @map("original_title")
+  overview      String?
+  releaseDate   String?   @map("release_date")
+  runtime       Int?
+  voteAverage   Float?    @map("vote_average")
+  popularity    Float?
+  posterPath    String?   @map("poster_path")
+  backdropPath  String?   @map("backdrop_path")
+  genres        String[]
+  fileHash      String?   @map("file_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  videoProviders VideoProvider[]
+
+  @@map("movies")
+}
+
+model Series {
+  id            String    @id @default(uuid())
+  tmdbId        Int       @unique @map("tmdb_id")
+  name          String
+  originalName  String?   @map("original_name")
+  overview      String?
+  firstAirDate  String?   @map("first_air_date")
+  voteAverage   Float?    @map("vote_average")
+  popularity    Float?
+  posterPath    String?   @map("poster_path")
+  backdropPath  String?   @map("backdrop_path")
+  genres        String[]
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  seasons       Season[]
+
+  @@map("series")
+}
+
+model Season {
+  id           String    @id @default(uuid())
+  seriesId     String    @map("series_id")
+  seasonNumber Int       @map("season_number")
+  name         String?
+  episodeCount Int?      @map("episode_count")
+  posterPath   String?   @map("poster_path")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  series       Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodes     Episode[]
+
+  @@unique([seriesId, seasonNumber])
+  @@map("seasons")
+}
+
+model Episode {
+  id            String    @id @default(uuid())
+  seasonId      String    @map("season_id")
+  episodeNumber Int       @map("episode_number")
+  name          String?
+  overview      String?
+  stillPath     String?   @map("still_path")
+  runtime       Int?
+  fileHash      String?   @map("file_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  season         Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  videoProviders VideoProvider[]
+
+  @@unique([seasonId, episodeNumber])
+  @@map("episodes")
+}
+
+model VideoProvider {
+  id             String   @id @default(uuid())
+  movieId        String?  @map("movie_id")
+  episodeId      String?  @map("episode_id")
+  providerName   String   @default("BunnyStream") @map("provider_name")
+  bunnyLibraryId String?  @map("bunny_library_id")
+  bunnyVideoId   String?  @map("bunny_video_id")
+  playbackUrl    String   @map("playback_url")
+  hlsUrl         String?  @map("hls_url")
+  directMp4Url   String?  @map("direct_mp4_url")
+  resolution     String?
+  fileSize       BigInt?  @map("file_size")
+  fileHash       String?  @map("file_hash")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  movie          Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episode        Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@map("video_providers")
+}
