@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { checkAdminAuthServer } from '@/lib/admin-auth';
+import { verifyAdminServerRequest } from '@/lib/admin-auth';
 import { BunnyStreamService } from '@/services/bunny/bunny-stream';
 import { ImportQueueService } from '@/services/queue/import-queue';
 
-export async function POST() {
-  const isAuth = await checkAdminAuthServer();
+export async function POST(req: Request) {
+  const isAuth = verifyAdminServerRequest(req);
   if (!isAuth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }

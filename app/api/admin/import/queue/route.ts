@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { checkAdminAuthServer } from '@/lib/admin-auth';
+import { verifyAdminServerRequest } from '@/lib/admin-auth';
 import { ImportQueueService } from '@/services/queue/import-queue';
 import { ImportLoggerService } from '@/services/logger/import-logger';
 
-export async function GET() {
-  const isAuth = await checkAdminAuthServer();
+export async function GET(req: Request) {
+  const isAuth = verifyAdminServerRequest(req);
   if (!isAuth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const isAuth = await checkAdminAuthServer();
+  const isAuth = verifyAdminServerRequest(req);
   if (!isAuth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
