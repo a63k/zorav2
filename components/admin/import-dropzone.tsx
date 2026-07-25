@@ -139,9 +139,10 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
               try {
                 const res = await fetch('/api/admin/import/bunny-sync', { method: 'POST' });
                 const data = await res.json();
-                if (data.syncedCount > 0) {
-                  setLastBatchCount(data.syncedCount);
-                  if (onFilesQueued) onFilesQueued(data.syncedCount);
+                if (data.videos && data.videos.length > 0) {
+                  ImportQueueService.addJobs(data.videos);
+                  setLastBatchCount(data.videos.length);
+                  if (onFilesQueued) onFilesQueued(data.videos.length);
                   setTimeout(() => setLastBatchCount(null), 5000);
                 } else {
                   alert(data.message || data.error || 'Aucune vidéo trouvée.');

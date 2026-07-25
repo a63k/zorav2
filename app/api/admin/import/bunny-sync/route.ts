@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminServerRequest } from '@/lib/admin-auth';
 import { BunnyStreamService } from '@/services/bunny/bunny-stream';
-import { ImportQueueService } from '@/services/queue/import-queue';
 
 export async function POST(req: Request) {
   const isAuth = verifyAdminServerRequest(req);
@@ -21,22 +20,21 @@ export async function POST(req: Request) {
     const remoteVideos = await bunny.listLibraryVideos();
     if (!remoteVideos || remoteVideos.length === 0) {
       return NextResponse.json(
-        { message: 'Aucune vidéo trouvée dans votre bibliothèque Bunny Stream.', syncedCount: 0 }
+        { message: 'Aucune vidéo trouvée dans votre bibliothèque Bunny Stream.', syncedCount: 0, videos: [] }
       );
     }
 
-    // Add existing Bunny Stream video titles to the import queue
-    const queuedJobs = ImportQueueService.addJobs(
-      remoteVideos.map((vid) => ({
-        filename: vid.title || `BunnyVideo_${vid.guid}.mp4`,
-        fileSize: 0,
-      }))
-    );
+    const formattedVideos = remoteVideos.map((vid) => ({
+      filename: vid.title || `BunnyVideo_${vid.guid}.mp4`,
+      fileSize: 0,
+      guid: vid.guid,
+    }));
 
     return NextResponse.json({
       success: true,
-      message: `${queuedJobs.length} vidéo(s) Bunny Stream importée(s) et ajoutée(s) à la file d'attente !`,
-      syncedCount: queuedJobs.length,
+      message: `${formattedVideos.length} vidéo(s) Bunny Stream trouvée(s) !`,
+      syncedCount: formattedVideos.length,
+      videos: formattedVideos,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Erreur lors de la synchronisation' }, { status: 500 });
