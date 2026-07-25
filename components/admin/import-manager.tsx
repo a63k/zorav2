@@ -1,11 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import ImportDropzone from './import-dropzone';
 import ImportQueueTable from './import-queue-table';
 import { Sparkles, Layers, ShieldCheck, Zap } from 'lucide-react';
+import { ImportOrchestrator } from '@/services/import/import-orchestrator';
 
 export default function ImportManager() {
+  useEffect(() => {
+    ImportOrchestrator.initialize();
+  }, []);
+
   return (
     <div className="w-full space-y-8 animate-fadeIn">
       {/* Header Banner */}

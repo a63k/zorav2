@@ -67,6 +67,7 @@ export class ImportQueueService {
   public static setProcessor(fn: (job: ImportJob) => Promise<void>) {
     this.processorFn = fn;
     this.initFromStorage();
+    this.processNext();
   }
 
   public static addJobs(files: { filename: string; fileSize: number; rawFile?: File | Blob; guid?: string }[]): ImportJob[] {
