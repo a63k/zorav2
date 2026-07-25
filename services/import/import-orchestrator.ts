@@ -163,7 +163,7 @@ export class ImportOrchestrator {
       title: selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle,
       posterPath: selectedTmdbItem.poster_path,
       backdropPath: selectedTmdbItem.backdrop_path,
-      mp4Url: bunnyMeta.directMp4Url || bunnyMeta.playbackUrl,
+      mp4Url: bunnyMeta.playbackUrl || bunnyMeta.directMp4Url,
       fileHash,
       bunnyLibraryId: bunnyLibId,
       bunnyVideoId: bunnyVidId,

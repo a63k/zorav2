@@ -44,6 +44,8 @@ export default function VideoPlayer({
   const isIframeEmbed = Boolean(
     mp4Url &&
       (mp4Url.includes('iframe.mediadelivery.net') ||
+        mp4Url.includes('mediadelivery.net') ||
+        mp4Url.includes('b-cdn.net') ||
         mp4Url.includes('/embed/') ||
         mp4Url.includes('embed') ||
         !mp4Url.toLowerCase().endsWith('.mp4'))
