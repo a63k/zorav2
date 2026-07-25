@@ -20,8 +20,8 @@ export class ImportOrchestrator {
     // 1. STEP 1: PARSE FILENAME
     ImportQueueService.updateJob(job.id, {
       status: 'hashing',
-      progress: 10,
-      stepMessage: 'Analyse du nom de fichier & signatures...',
+      progress: 15,
+      stepMessage: 'Analyse du nom de fichier & titre...',
     });
 
     const parsed = parseFilename(job.filename);
@@ -33,7 +33,7 @@ export class ImportOrchestrator {
     );
     ImportQueueService.updateJob(job.id, { parsedInfo: parsed });
 
-    // 2. STEP 2: GENERATE HASH & CHECK DUPLICATE
+    // 2. STEP 2: GENERATE HASH & CHECK DUPLICATE (if local raw file exists)
     let fileHash: string | undefined;
     if (job.rawFile) {
       try {
@@ -45,7 +45,7 @@ export class ImportOrchestrator {
         const existingRecord = await this.dbRepo.findByHash(fileHash);
         if (existingRecord) {
           ImportLoggerService.warn(
-            `Fichier en double détecté (Hash SHA-256 existant: ${fileHash.slice(0, 8)}...). Annulation de l'upload.`,
+            `Fichier en double détecté (Hash SHA-256 existant: ${fileHash.slice(0, 8)}...). Annulation.`,
             job.id
           );
           ImportQueueService.updateJob(job.id, {
@@ -67,7 +67,7 @@ export class ImportOrchestrator {
     if (!selectedTmdbItem) {
       ImportQueueService.updateJob(job.id, {
         status: 'tmdb_lookup',
-        progress: 25,
+        progress: 40,
         stepMessage: `Recherche TMDB pour "${parsed.cleanTitle}"...`,
       });
 
@@ -81,7 +81,7 @@ export class ImportOrchestrator {
         );
         ImportQueueService.updateJob(job.id, {
           status: 'awaiting_confirmation',
-          progress: 35,
+          progress: 50,
           stepMessage: 'En attente de validation manuelle de l\'administrateur',
         });
         return; // Pause until admin validates via manual selection modal
@@ -95,47 +95,64 @@ export class ImportOrchestrator {
       ImportQueueService.updateJob(job.id, { selectedTmdbItem });
     }
 
-    // 4. STEP 4: BUNNY STREAM UPLOAD
-    ImportQueueService.updateJob(job.id, {
-      status: 'uploading',
-      progress: 45,
-      stepMessage: 'Création de la vidéo sur Bunny Stream...',
-    });
+    // 4. STEP 4: BUNNY STREAM HANDLING
+    let bunnyVidId: string;
+    let bunnyLibId: string;
 
-    const titleForBunny = `${selectedTmdbItem.title || selectedTmdbItem.name}${
-      parsed.seasonNumber ? ` S${parsed.seasonNumber}E${parsed.episodeNumber}` : ''
-    }`;
-
-    const bunnyVid = await this.bunnyService.createVideo(titleForBunny);
-
-    if (job.rawFile) {
+    if (job.guid) {
+      // Video is ALREADY uploaded on Bunny Stream!
+      bunnyVidId = job.guid;
+      bunnyLibId = process.env.BUNNY_STREAM_LIBRARY_ID || '713081';
       ImportQueueService.updateJob(job.id, {
-        stepMessage: 'Upload binaire en cours vers le CDN Bunny Stream...',
+        status: 'encoding',
+        progress: 80,
+        stepMessage: 'Vidéo Bunny Stream détectée, vérification du flux...',
+      });
+    } else {
+      // Video needs to be created & uploaded to Bunny Stream
+      ImportQueueService.updateJob(job.id, {
+        status: 'uploading',
+        progress: 55,
+        stepMessage: 'Création de la vidéo sur Bunny Stream...',
       });
 
-      const arrayBuffer = await job.rawFile.arrayBuffer();
-      await this.bunnyService.uploadVideoBinary(
-        bunnyVid.libraryId,
-        bunnyVid.videoId,
-        arrayBuffer,
-        (uploadPct) => {
-          const currentTotalProgress = Math.round(45 + (uploadPct * 0.4)); // 45% -> 85%
-          ImportQueueService.updateJob(job.id, {
-            progress: currentTotalProgress,
-            stepMessage: `Upload vers Bunny Stream: ${uploadPct}%`,
-          });
-        }
-      );
+      const titleForBunny = `${selectedTmdbItem.title || selectedTmdbItem.name}${
+        parsed.seasonNumber ? ` S${parsed.seasonNumber}E${parsed.episodeNumber}` : ''
+      }`;
+
+      const bunnyVid = await this.bunnyService.createVideo(titleForBunny);
+      bunnyVidId = bunnyVid.videoId;
+      bunnyLibId = bunnyVid.libraryId;
+
+      if (job.rawFile) {
+        ImportQueueService.updateJob(job.id, {
+          stepMessage: 'Upload binaire en cours vers le CDN Bunny Stream...',
+        });
+
+        const arrayBuffer = await job.rawFile.arrayBuffer();
+        await this.bunnyService.uploadVideoBinary(
+          bunnyVid.libraryId,
+          bunnyVid.videoId,
+          arrayBuffer,
+          (uploadPct) => {
+            const currentTotalProgress = Math.round(55 + (uploadPct * 0.35)); // 55% -> 90%
+            ImportQueueService.updateJob(job.id, {
+              progress: currentTotalProgress,
+              stepMessage: `Upload vers Bunny Stream: ${uploadPct}%`,
+            });
+          }
+        );
+      }
     }
 
-    // 5. STEP 5: CHECK ENCODING STATUS & PERSIST TO DB
+    // 5. STEP 5: SAVE TO DB & COMPLETE
     ImportQueueService.updateJob(job.id, {
       status: 'encoding',
       progress: 90,
-      stepMessage: 'Vérification de l\'encodage vidéo...',
+      stepMessage: 'Enregistrement dans la base de données Zora...',
     });
 
-    const bunnyMeta = await this.bunnyService.checkVideoStatus(bunnyVid.libraryId, bunnyVid.videoId);
+    const bunnyMeta = await this.bunnyService.checkVideoStatus(bunnyLibId, bunnyVidId);
 
     // Save/Update in Database Repository
     await this.dbRepo.upsertMediaRecord({
@@ -148,8 +165,8 @@ export class ImportOrchestrator {
       backdropPath: selectedTmdbItem.backdrop_path,
       mp4Url: bunnyMeta.directMp4Url || bunnyMeta.playbackUrl,
       fileHash,
-      bunnyLibraryId: bunnyVid.libraryId,
-      bunnyVideoId: bunnyVid.videoId,
+      bunnyLibraryId: bunnyLibId,
+      bunnyVideoId: bunnyVidId,
     });
 
     ImportLoggerService.success(

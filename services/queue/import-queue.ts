@@ -19,6 +19,7 @@ export interface ImportJob {
   filename: string;
   fileSize: number;
   rawFile?: File | Blob;
+  guid?: string;
   status: JobStatus;
   progress: number;
   stepMessage: string;
@@ -45,12 +46,13 @@ export class ImportQueueService {
     this.processorFn = fn;
   }
 
-  public static addJobs(files: { filename: string; fileSize: number; rawFile?: File | Blob }[]): ImportJob[] {
+  public static addJobs(files: { filename: string; fileSize: number; rawFile?: File | Blob; guid?: string }[]): ImportJob[] {
     const newJobs: ImportJob[] = files.map((f) => ({
       id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       filename: f.filename,
       fileSize: f.fileSize,
       rawFile: f.rawFile,
+      guid: f.guid,
       status: 'pending',
       progress: 0,
       stepMessage: 'Initialisé dans la file d\'attente',
