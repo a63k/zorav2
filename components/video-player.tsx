@@ -166,7 +166,13 @@ export default function VideoPlayer({
     );
   }
 
-  const iframeSrcUrl = mp4Url.includes('?') ? `${mp4Url}&autoplay=true` : `${mp4Url}?autoplay=true`;
+  let normalizedUrl = mp4Url;
+  if (normalizedUrl.includes('player.mediadelivery.net/play/')) {
+    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/play/', 'player.mediadelivery.net/embed/');
+  } else if (normalizedUrl.includes('iframe.mediadelivery.net/embed/')) {
+    normalizedUrl = normalizedUrl.replace('iframe.mediadelivery.net/embed/', 'player.mediadelivery.net/embed/');
+  }
+  const iframeSrcUrl = normalizedUrl.includes('?') ? `${normalizedUrl}&autoplay=true` : `${normalizedUrl}?autoplay=true`;
 
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl group">
