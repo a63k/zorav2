@@ -43,12 +43,11 @@ export default function VideoPlayer({
 
   const isIframeEmbed = Boolean(
     mp4Url &&
-      (mp4Url.includes('iframe.mediadelivery.net') ||
-        mp4Url.includes('mediadelivery.net') ||
-        mp4Url.includes('b-cdn.net') ||
+      (mp4Url.includes('mediadelivery.net') ||
         mp4Url.includes('/embed/') ||
-        mp4Url.includes('embed') ||
-        !mp4Url.toLowerCase().endsWith('.mp4'))
+        mp4Url.includes('embed')) &&
+      !mp4Url.toLowerCase().endsWith('.mp4') &&
+      !mp4Url.toLowerCase().endsWith('.m3u8')
   );
 
   // Check saved session token on load or when season/episode changes
@@ -167,10 +166,10 @@ export default function VideoPlayer({
   }
 
   let normalizedUrl = mp4Url;
-  if (normalizedUrl.includes('player.mediadelivery.net/play/')) {
-    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/play/', 'player.mediadelivery.net/embed/');
-  } else if (normalizedUrl.includes('iframe.mediadelivery.net/embed/')) {
-    normalizedUrl = normalizedUrl.replace('iframe.mediadelivery.net/embed/', 'player.mediadelivery.net/embed/');
+  if (normalizedUrl.includes('player.mediadelivery.net/')) {
+    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/');
+    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/embed/', 'iframe.mediadelivery.net/embed/');
+    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/', 'iframe.mediadelivery.net/embed/');
   }
   const iframeSrcUrl = normalizedUrl.includes('?') ? `${normalizedUrl}&autoplay=true` : `${normalizedUrl}?autoplay=true`;
 
@@ -222,8 +221,9 @@ export default function VideoPlayer({
             src={iframeSrcUrl}
             title={title}
             className="w-full h-full border-0"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
+            referrerPolicy="origin"
           />
         </div>
       ) : (

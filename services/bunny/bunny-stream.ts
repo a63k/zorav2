@@ -109,7 +109,7 @@ export class BunnyStreamService {
    * Poll encoding status of uploaded video
    */
   public async checkVideoStatus(libraryId: string, videoId: string): Promise<BunnyVideoMetadata> {
-    const playbackUrl = `https://player.mediadelivery.net/embed/${libraryId}/${videoId}`;
+    const playbackUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}`;
     const hlsUrl = `${BUNNY_PULL_ZONE_CDN}/${videoId}/playlist.m3u8`;
     const directMp4Url = `${BUNNY_PULL_ZONE_CDN}/${videoId}/play_720p.mp4`;
     const thumbnailUrl = `${BUNNY_PULL_ZONE_CDN}/${videoId}/thumbnail.jpg`;
