@@ -47,7 +47,7 @@ export default function VideoPlayer({
 
   const BUNNY_LIBRARY_ID = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '713081';
 
-  // Determine stream player info (Use Bunny Stream official embed iframe to prevent 403 / 0:01 black screen)
+  // Determine stream player info (Use Bunny Stream official embed iframe for reliable HD playback)
   const streamInfo = React.useMemo(() => {
     if (!mp4Url) return { isIframe: false, iframeSrc: '', isDirectMp4: false };
     const url = mp4Url.trim();
@@ -90,10 +90,29 @@ export default function VideoPlayer({
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
       try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        let data = event.data;
+        if (typeof data === 'string') {
+          if (data.startsWith('{') || data.startsWith('[')) {
+            data = JSON.parse(data);
+          } else {
+            return;
+          }
+        }
         
-        const curr = data.currentTime ?? data.data?.currentTime ?? data.time ?? data.seconds;
-        const dur = data.duration ?? data.data?.duration ?? data.totalTime;
+        const curr = 
+          data.currentTime ?? 
+          data.detail?.currentTime ?? 
+          data.data?.currentTime ?? 
+          data.value?.currentTime ??
+          data.time ?? 
+          data.seconds;
+
+        const dur = 
+          data.duration ?? 
+          data.detail?.duration ?? 
+          data.data?.duration ?? 
+          data.value?.duration ??
+          data.totalTime;
 
         if (typeof curr === 'number' && !isNaN(curr)) {
           setCurrentTime(curr);
@@ -119,7 +138,8 @@ export default function VideoPlayer({
           }
         }
 
-        if (data.event === 'ended' || data.type === 'ended') {
+        const evt = data.event || data.type || data.action;
+        if (evt === 'ended' || (typeof dur === 'number' && typeof curr === 'number' && dur > 10 && curr >= dur - 1)) {
           if (onNextEpisode && hasNextEpisode) {
             onNextEpisode();
           }
@@ -238,7 +258,8 @@ export default function VideoPlayer({
   };
 
   const remainingTime = duration > 0 ? duration - currentTime : 0;
-  const isNearEnd = duration > 15 && remainingTime <= 15 && remainingTime > 0;
+  // Button displays automatically during last 36 seconds or on hover when next episode exists
+  const isNearEnd = duration > 0 ? (remainingTime <= 36 && remainingTime >= 0) : false;
 
   if (!mp4Url) {
     return (
@@ -305,20 +326,26 @@ export default function VideoPlayer({
             referrerPolicy="origin"
           />
 
-          {/* Floating "Prochain Épisode" Button (Overlayed on player container during last 15s) */}
-          {hasNextEpisode && onNextEpisode && isNearEnd && (
+          {/* Floating "Prochain Épisode" Button (Displays automatically at <= 36s remaining or on hover) */}
+          {hasNextEpisode && onNextEpisode && (
             <button
               onClick={onNextEpisode}
-              className="absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-pulse scale-105"
+              className={`absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
+                isNearEnd
+                  ? 'opacity-100 animate-pulse scale-105'
+                  : 'opacity-0 group-hover/player:opacity-100'
+              }`}
               title="Passer à l'épisode suivant"
             >
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
                 <span>Prochain épisode</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                {Math.ceil(remainingTime)}s
-              </span>
+              {isNearEnd && remainingTime > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                  {Math.ceil(remainingTime)}s
+                </span>
+              )}
               <FastForward className="w-4 h-4 fill-white" />
             </button>
           )}
@@ -345,19 +372,25 @@ export default function VideoPlayer({
           />
 
           {/* Floating "Prochain Épisode" Button */}
-          {hasNextEpisode && onNextEpisode && isNearEnd && (
+          {hasNextEpisode && onNextEpisode && (
             <button
               onClick={onNextEpisode}
-              className="absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-pulse scale-105"
+              className={`absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
+                isNearEnd
+                  ? 'opacity-100 animate-pulse scale-105'
+                  : 'opacity-0 group-hover/player:opacity-100'
+              }`}
               title="Passer à l'épisode suivant"
             >
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
                 <span>Prochain épisode</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                {Math.ceil(remainingTime)}s
-              </span>
+              {isNearEnd && remainingTime > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                  {Math.ceil(remainingTime)}s
+                </span>
+              )}
               <FastForward className="w-4 h-4 fill-white" />
             </button>
           )}
