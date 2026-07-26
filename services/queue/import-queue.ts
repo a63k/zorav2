@@ -20,6 +20,10 @@ export interface ImportJob {
   fileSize: number;
   rawFile?: File | Blob;
   guid?: string;
+  mediaType?: 'movie' | 'tv';
+  seriesTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
   status: JobStatus;
   progress: number;
   stepMessage: string;
@@ -70,7 +74,18 @@ export class ImportQueueService {
     this.processNext();
   }
 
-  public static addJobs(files: { filename: string; fileSize: number; rawFile?: File | Blob; guid?: string }[]): ImportJob[] {
+  public static addJobs(
+    files: {
+      filename: string;
+      fileSize: number;
+      rawFile?: File | Blob;
+      guid?: string;
+      mediaType?: 'movie' | 'tv';
+      seriesTitle?: string;
+      seasonNumber?: number;
+      episodeNumber?: number;
+    }[]
+  ): ImportJob[] {
     this.initFromStorage();
     const newJobs: ImportJob[] = files.map((f) => ({
       id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -78,6 +93,10 @@ export class ImportQueueService {
       fileSize: f.fileSize,
       rawFile: f.rawFile,
       guid: f.guid,
+      mediaType: f.mediaType,
+      seriesTitle: f.seriesTitle,
+      seasonNumber: f.seasonNumber,
+      episodeNumber: f.episodeNumber,
       status: 'pending',
       progress: 0,
       stepMessage: 'Initialisé dans la file d\'attente',

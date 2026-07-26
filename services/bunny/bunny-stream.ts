@@ -227,13 +227,41 @@ export class BunnyStreamService {
   }
 
   /**
-   * List all existing videos already uploaded to Bunny Stream Library
+   * List all collections in Bunny Stream Library
    */
-  public async listLibraryVideos(): Promise<{ guid: string; title: string; length?: number }[]> {
+  public async listCollections(): Promise<{ guid: string; name: string }[]> {
     if (!this.isConfigured()) return [];
 
     try {
-      const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos?itemsPerPage=100`;
+      const url = `https://video.bunnycdn.com/library/${this.libraryId}/collections?itemsPerPage=250`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          AccessKey: this.apiKey,
+          accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.items || []).map((item: any) => ({
+        guid: item.guid,
+        name: item.name,
+      }));
+    } catch (err) {
+      console.error('Error fetching Bunny Stream collections:', err);
+      return [];
+    }
+  }
+
+  /**
+   * List all existing videos already uploaded to Bunny Stream Library
+   */
+  public async listLibraryVideos(): Promise<{ guid: string; title: string; length?: number; collectionId?: string }[]> {
+    if (!this.isConfigured()) return [];
+
+    try {
+      const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos?itemsPerPage=500`;
       const res = await fetch(url, {
         method: 'GET',
         headers: {
@@ -248,6 +276,7 @@ export class BunnyStreamService {
         guid: item.guid,
         title: item.title,
         length: item.length,
+        collectionId: item.collectionId,
       }));
     } catch (err) {
       console.error('Error fetching Bunny Stream library videos:', err);

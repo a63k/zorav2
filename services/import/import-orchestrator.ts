@@ -25,25 +25,14 @@ export class ImportOrchestrator {
     });
 
     const parsed = parseFilename(job.filename);
-    const IS_TV_EPISODE_REGEX = /\b(s\d{1,2}[_.\s]?e\d{1,3}|\d{1,2}x\d{1,3}|season|saison|episode|épisode)\b/i;
 
-    // Check if file is a TV Series episode -> Skip (Automated importer is strictly for Movies)
-    if (parsed.mediaType === 'tv' || IS_TV_EPISODE_REGEX.test(job.filename)) {
-      ImportLoggerService.warn(
-        `Fichier ignoré : L'importateur automatique est réservé aux films ("${job.filename}").`,
-        job.id
-      );
-      ImportQueueService.updateJob(job.id, {
-        status: 'completed',
-        progress: 100,
-        stepMessage: 'Ignoré (Importateur automatique réservé aux films)',
-        completedAt: new Date().toISOString(),
-      });
-      return;
-    }
+    const mediaType: 'movie' | 'tv' = job.mediaType || (parsed.mediaType === 'tv' ? 'tv' : 'movie');
+    const seriesTitle = job.seriesTitle || (parsed.cleanTitle !== job.filename ? parsed.cleanTitle : '');
+    const seasonNumber = job.seasonNumber || parsed.seasonNumber || 1;
+    const episodeNumber = job.episodeNumber || parsed.episodeNumber || 1;
 
     ImportLoggerService.info(
-      `Nom analysé: "${parsed.cleanTitle}" (Film)`,
+      `Nom analysé: "${job.filename}" (${mediaType === 'tv' ? `Série: ${seriesTitle || parsed.cleanTitle} S${seasonNumber}E${episodeNumber}` : `Film: ${parsed.cleanTitle}`})`,
       job.id
     );
     ImportQueueService.updateJob(job.id, { parsedInfo: parsed });
@@ -80,18 +69,20 @@ export class ImportOrchestrator {
     let selectedTmdbItem = job.selectedTmdbItem;
 
     if (!selectedTmdbItem) {
+      const tmdbSearchQuery = (mediaType === 'tv' && seriesTitle) ? seriesTitle : parsed.cleanTitle;
+      
       ImportQueueService.updateJob(job.id, {
         status: 'tmdb_lookup',
         progress: 40,
-        stepMessage: `Recherche TMDB pour "${parsed.cleanTitle}"...`,
+        stepMessage: `Recherche TMDB pour "${tmdbSearchQuery}"...`,
       });
 
-      const tmdbResult = await matchTMDbItem(parsed.cleanTitle, 'movie', parsed.year);
+      const tmdbResult = await matchTMDbItem(tmdbSearchQuery, mediaType, parsed.year);
       ImportQueueService.updateJob(job.id, { tmdbMatchResult: tmdbResult });
 
       if (tmdbResult.requiresManualReview || !tmdbResult.bestMatch) {
         ImportLoggerService.warn(
-          `Confiance TMDB faible (<90%). Confirmation administrateur requise pour "${parsed.cleanTitle}".`,
+          `Confiance TMDB faible (<90%). Confirmation administrateur requise pour "${tmdbSearchQuery}".`,
           job.id
         );
         ImportQueueService.updateJob(job.id, {
@@ -110,17 +101,17 @@ export class ImportOrchestrator {
       ImportQueueService.updateJob(job.id, { selectedTmdbItem });
     }
 
-    // Check if TMDB Movie already exists in Zora DB
-    const existingMovie = await this.dbRepo.findByTmdbId(selectedTmdbItem.id, 'movie');
-    if (existingMovie) {
+    // Check if item already exists in Zora DB
+    const existingMedia = await this.dbRepo.findByTmdbId(selectedTmdbItem.id, mediaType);
+    if (existingMedia && mediaType === 'movie') {
       ImportLoggerService.warn(
-        `Film déjà présent dans Zora ("${existingMovie.title}"). Importation ignorée.`,
+        `Film déjà présent dans Zora ("${existingMedia.title}"). Importation ignorée.`,
         job.id
       );
       ImportQueueService.updateJob(job.id, {
         status: 'completed',
         progress: 100,
-        stepMessage: `Déjà présent dans Zora ("${existingMovie.title}")`,
+        stepMessage: `Déjà présent dans Zora ("${existingMedia.title}")`,
         completedAt: new Date().toISOString(),
       });
       return;
@@ -147,9 +138,14 @@ export class ImportOrchestrator {
         stepMessage: 'Création de la vidéo sur Bunny Stream...',
       });
 
-      const collectionName = 'Films';
+      const collectionName = mediaType === 'tv'
+        ? selectedTmdbItem.name || selectedTmdbItem.title || seriesTitle || parsed.cleanTitle
+        : 'Films';
+
       const collectionId = await this.bunnyService.getOrCreateCollection(collectionName);
-      const titleForBunny = selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
+      const titleForBunny = mediaType === 'tv'
+        ? `s${seasonNumber}_e${episodeNumber}`
+        : selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
 
       const bunnyVid = await this.bunnyService.createVideo(titleForBunny, collectionId);
       bunnyVidId = bunnyVid.videoId;
@@ -188,8 +184,10 @@ export class ImportOrchestrator {
     // Save/Update in Database Repository
     await this.dbRepo.upsertMediaRecord({
       tmdbId: selectedTmdbItem.id,
-      mediaType: 'movie',
-      title: selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle,
+      mediaType,
+      seasonNumber: mediaType === 'tv' ? seasonNumber : undefined,
+      episodeNumber: mediaType === 'tv' ? episodeNumber : undefined,
+      title: selectedTmdbItem.title || selectedTmdbItem.name || seriesTitle || parsed.cleanTitle,
       posterPath: selectedTmdbItem.poster_path,
       backdropPath: selectedTmdbItem.backdrop_path,
       mp4Url: bunnyMeta.playbackUrl || bunnyMeta.directMp4Url,

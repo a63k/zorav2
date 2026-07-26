@@ -20,54 +20,95 @@ export async function POST(req: Request) {
       );
     }
 
-    const remoteVideos = await bunny.listLibraryVideos();
+    const [remoteVideos, collections] = await Promise.all([
+      bunny.listLibraryVideos(),
+      bunny.listCollections(),
+    ]);
+
     if (!remoteVideos || remoteVideos.length === 0) {
       return NextResponse.json(
         { message: 'Aucune vidéo trouvée dans votre bibliothèque Bunny Stream.', syncedCount: 0, videos: [] }
       );
     }
 
+    const collectionsMap = new Map<string, string>();
+    (collections || []).forEach((c) => collectionsMap.set(c.guid, c.name));
+
     // Get all already imported links in Zora database/store
     const existingLinks = await getAllMediaLinks();
 
-    // 1. Filter out TV series episodes (since auto-importer is strictly for Movies)
-    // 2. Filter out videos that are already imported in Zora
-    const unimportedMovies = remoteVideos.filter((vid) => {
-      const title = vid.title || '';
+    // Categorize videos into Movies (Collection 'Films') and Series Episodes (Collection = Series Name)
+    const unimportedVideos = remoteVideos
+      .map((vid) => {
+        const title = vid.title || '';
+        const collectionName = vid.collectionId ? collectionsMap.get(vid.collectionId) || '' : '';
+        const isFilmsCollection = collectionName.toLowerCase() === 'films';
 
-      // Filter out TV Series Episodes (s1_e1, s1_e2, S01E02, etc.)
-      if (IS_TV_EPISODE_REGEX.test(title)) {
-        return false;
-      }
+        const SXXEXX_MATCH = title.match(/\bS(\d{1,2})[_.\s]?E(\d{1,3})\b/i);
 
-      // Filter out already imported videos by GUID or URL match
-      const isAlreadyImported = existingLinks.some(
-        (link) => (link.mp4_url && link.mp4_url.includes(vid.guid)) || (link as any).bunny_video_id === vid.guid
-      );
+        let mediaType: 'movie' | 'tv' = 'movie';
+        let seriesTitle: string | undefined = undefined;
+        let seasonNumber: number | undefined = undefined;
+        let episodeNumber: number | undefined = undefined;
 
-      return !isAlreadyImported;
-    });
+        // If video belongs to a Series Collection (NOT 'Films') or title has s1_e1 episode format:
+        if (!isFilmsCollection && (collectionName || SXXEXX_MATCH)) {
+          mediaType = 'tv';
+          seriesTitle = collectionName || title.replace(/\bS\d{1,2}[_.\s]?E\d{1,3}\b/i, '').trim();
+          if (SXXEXX_MATCH) {
+            seasonNumber = parseInt(SXXEXX_MATCH[1], 10);
+            episodeNumber = parseInt(SXXEXX_MATCH[2], 10);
+          } else {
+            seasonNumber = 1;
+            episodeNumber = 1;
+          }
+        }
 
-    if (unimportedMovies.length === 0) {
+        // Check if video is already imported in Zora
+        const isAlreadyImported = existingLinks.some((link) => {
+          if (link.mp4_url && link.mp4_url.includes(vid.guid)) return true;
+          if ((link as any).bunny_video_id === vid.guid) return true;
+          if (mediaType === 'tv' && seriesTitle && seasonNumber && episodeNumber) {
+            return (
+              link.media_type === 'tv' &&
+              link.season_number === seasonNumber &&
+              link.episode_number === episodeNumber &&
+              link.title?.toLowerCase().includes(seriesTitle.toLowerCase())
+            );
+          }
+          return false;
+        });
+
+        if (isAlreadyImported) return null;
+
+        return {
+          filename: mediaType === 'tv' && seriesTitle
+            ? `${seriesTitle} - S${seasonNumber}E${episodeNumber}`
+            : title || `BunnyVideo_${vid.guid}.mp4`,
+          fileSize: 0,
+          guid: vid.guid,
+          mediaType,
+          seriesTitle,
+          seasonNumber,
+          episodeNumber,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+
+    if (unimportedVideos.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'Tous les films de votre bibliothèque Bunny Stream sont déjà importés dans Zora !',
+        message: 'Toutes les vidéos de votre bibliothèque Bunny Stream sont déjà importées dans Zora !',
         syncedCount: 0,
         videos: [],
       });
     }
 
-    const formattedVideos = unimportedMovies.map((vid) => ({
-      filename: vid.title || `BunnyVideo_${vid.guid}.mp4`,
-      fileSize: 0,
-      guid: vid.guid,
-    }));
-
     return NextResponse.json({
       success: true,
-      message: `${formattedVideos.length} nouveau(x) film(s) Bunny Stream prêt(s) à être importé(s) !`,
-      syncedCount: formattedVideos.length,
-      videos: formattedVideos,
+      message: `${unimportedVideos.length} nouvelle(s) vidéo(s) Bunny Stream prête(s) à être synchronisée(s) !`,
+      syncedCount: unimportedVideos.length,
+      videos: unimportedVideos,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Erreur lors de la synchronisation' }, { status: 500 });
