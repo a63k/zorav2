@@ -17,7 +17,9 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
   const handleFilesSelected = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
 
+    const IS_TV_EPISODE_REGEX = /\b(s\d{1,2}[_.\s]?e\d{1,3}|\d{1,2}x\d{1,3}|season|saison|episode|épisode)\b/i;
     const validVideoFiles: { filename: string; fileSize: number; rawFile: File }[] = [];
+    let skippedTvCount = 0;
 
     const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.ts', '.flv'];
 
@@ -27,12 +29,21 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
       const lower = filename.toLowerCase();
 
       if (videoExtensions.some((ext) => lower.endsWith(ext))) {
-        validVideoFiles.push({
-          filename,
-          fileSize: file.size,
-          rawFile: file,
-        });
+        if (IS_TV_EPISODE_REGEX.test(filename)) {
+          skippedTvCount++;
+        } else {
+          validVideoFiles.push({
+            filename,
+            fileSize: file.size,
+            rawFile: file,
+          });
+        }
       }
+    }
+
+    if (skippedTvCount > 0 && validVideoFiles.length === 0) {
+      alert(`Info: ${skippedTvCount} fichier(s) série/épisode ignoré(s). L'importateur automatique est exclusivement réservé aux FILMS.`);
+      return;
     }
 
     if (validVideoFiles.length > 0) {
@@ -40,8 +51,11 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
       setLastBatchCount(validVideoFiles.length);
       if (onFilesQueued) onFilesQueued(validVideoFiles.length);
       setTimeout(() => setLastBatchCount(null), 5000);
+      if (skippedTvCount > 0) {
+        alert(`Note : ${skippedTvCount} fichier(s) série/épisode a/ont été ignoré(s) car l'importateur est réservé aux FILMS.`);
+      }
     } else {
-      alert('Aucun fichier vidéo valide (.mp4, .mkv, .avi, etc.) n\'a été trouvé dans la sélection.');
+      alert('Aucun fichier film valide (.mp4, .mkv, .avi, etc.) n\'a été trouvé dans la sélection.');
     }
   };
 
@@ -110,7 +124,7 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
             Glissez-déposez un dossier ou des vidéos ici
           </h3>
           <p className="text-xs text-gray-400">
-            Supporte la structure récursive des dossiers (Films & Séries). Formats acceptés : MP4, MKV, AVI, WEBM.
+            Importation automatique réservée aux <strong>FILMS</strong>. Formats acceptés : MP4, MKV, AVI, WEBM.
           </p>
         </div>
 

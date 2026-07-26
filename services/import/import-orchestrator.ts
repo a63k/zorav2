@@ -25,10 +25,25 @@ export class ImportOrchestrator {
     });
 
     const parsed = parseFilename(job.filename);
+    const IS_TV_EPISODE_REGEX = /\b(s\d{1,2}[_.\s]?e\d{1,3}|\d{1,2}x\d{1,3}|season|saison|episode|épisode)\b/i;
+
+    // Check if file is a TV Series episode -> Skip (Automated importer is strictly for Movies)
+    if (parsed.mediaType === 'tv' || IS_TV_EPISODE_REGEX.test(job.filename)) {
+      ImportLoggerService.warn(
+        `Fichier ignoré : L'importateur automatique est réservé aux films ("${job.filename}").`,
+        job.id
+      );
+      ImportQueueService.updateJob(job.id, {
+        status: 'completed',
+        progress: 100,
+        stepMessage: 'Ignoré (Importateur automatique réservé aux films)',
+        completedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
     ImportLoggerService.info(
-      `Nom analysé: "${parsed.cleanTitle}" (${parsed.mediaType}${
-        parsed.seasonNumber ? ` S${parsed.seasonNumber}E${parsed.episodeNumber}` : ''
-      })`,
+      `Nom analysé: "${parsed.cleanTitle}" (Film)`,
       job.id
     );
     ImportQueueService.updateJob(job.id, { parsedInfo: parsed });
@@ -71,7 +86,7 @@ export class ImportOrchestrator {
         stepMessage: `Recherche TMDB pour "${parsed.cleanTitle}"...`,
       });
 
-      const tmdbResult = await matchTMDbItem(parsed.cleanTitle, parsed.mediaType, parsed.year);
+      const tmdbResult = await matchTMDbItem(parsed.cleanTitle, 'movie', parsed.year);
       ImportQueueService.updateJob(job.id, { tmdbMatchResult: tmdbResult });
 
       if (tmdbResult.requiresManualReview || !tmdbResult.bestMatch) {
@@ -95,6 +110,22 @@ export class ImportOrchestrator {
       ImportQueueService.updateJob(job.id, { selectedTmdbItem });
     }
 
+    // Check if TMDB Movie already exists in Zora DB
+    const existingMovie = await this.dbRepo.findByTmdbId(selectedTmdbItem.id, 'movie');
+    if (existingMovie) {
+      ImportLoggerService.warn(
+        `Film déjà présent dans Zora ("${existingMovie.title}"). Importation ignorée.`,
+        job.id
+      );
+      ImportQueueService.updateJob(job.id, {
+        status: 'completed',
+        progress: 100,
+        stepMessage: `Déjà présent dans Zora ("${existingMovie.title}")`,
+        completedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
     // 4. STEP 4: BUNNY STREAM HANDLING
     let bunnyVidId: string;
     let bunnyLibId: string;
@@ -116,16 +147,9 @@ export class ImportOrchestrator {
         stepMessage: 'Création de la vidéo sur Bunny Stream...',
       });
 
-      const isTv = parsed.mediaType === 'tv';
-      const collectionName = isTv
-        ? selectedTmdbItem.name || selectedTmdbItem.title || parsed.cleanTitle
-        : 'Films';
-
+      const collectionName = 'Films';
       const collectionId = await this.bunnyService.getOrCreateCollection(collectionName);
-
-      const titleForBunny = isTv
-        ? `s${parsed.seasonNumber || 1}_e${parsed.episodeNumber || 1}`
-        : selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
+      const titleForBunny = selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
 
       const bunnyVid = await this.bunnyService.createVideo(titleForBunny, collectionId);
       bunnyVidId = bunnyVid.videoId;
@@ -164,9 +188,7 @@ export class ImportOrchestrator {
     // Save/Update in Database Repository
     await this.dbRepo.upsertMediaRecord({
       tmdbId: selectedTmdbItem.id,
-      mediaType: parsed.mediaType,
-      seasonNumber: parsed.seasonNumber,
-      episodeNumber: parsed.episodeNumber,
+      mediaType: 'movie',
       title: selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle,
       posterPath: selectedTmdbItem.poster_path,
       backdropPath: selectedTmdbItem.backdrop_path,

@@ -17,6 +17,18 @@ export interface ImportMediaRecord {
 
 export class ImportRepositoryService {
   /**
+   * Check if media item with given TMDB ID and type already exists in database
+   */
+  public async findByTmdbId(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<MediaLink | null> {
+    try {
+      const all = await getAllMediaLinks();
+      return all.find((l) => Number(l.tmdb_id) === Number(tmdbId) && l.media_type === mediaType) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
    * Check if video with identical SHA-256 hash already exists in database
    */
   public async findByHash(fileHash: string): Promise<MediaLink | null> {
