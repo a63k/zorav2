@@ -305,24 +305,20 @@ export default function VideoPlayer({
             referrerPolicy="origin"
           />
 
-          {/* Floating "Prochain Épisode" Button (Overlayed on Bunny player container) */}
-          {hasNextEpisode && onNextEpisode && (
+          {/* Floating "Prochain Épisode" Button (Overlayed on player container during last 15s) */}
+          {hasNextEpisode && onNextEpisode && isNearEnd && (
             <button
               onClick={onNextEpisode}
-              className={`absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
-                isNearEnd ? 'animate-pulse opacity-100 scale-105' : 'opacity-90 hover:opacity-100'
-              }`}
+              className="absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-pulse scale-105"
               title="Passer à l'épisode suivant"
             >
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-300" />
+                <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
                 <span>Prochain épisode</span>
               </div>
-              {isNearEnd && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                  {Math.ceil(remainingTime)}s
-                </span>
-              )}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                {Math.ceil(remainingTime)}s
+              </span>
               <FastForward className="w-4 h-4 fill-white" />
             </button>
           )}
@@ -349,23 +345,19 @@ export default function VideoPlayer({
           />
 
           {/* Floating "Prochain Épisode" Button */}
-          {hasNextEpisode && onNextEpisode && (
+          {hasNextEpisode && onNextEpisode && isNearEnd && (
             <button
               onClick={onNextEpisode}
-              className={`absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
-                isNearEnd ? 'animate-pulse opacity-100 scale-105' : 'opacity-90 hover:opacity-100'
-              }`}
+              className="absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-pulse scale-105"
               title="Passer à l'épisode suivant"
             >
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-300" />
+                <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
                 <span>Prochain épisode</span>
               </div>
-              {isNearEnd && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                  {Math.ceil(remainingTime)}s
-                </span>
-              )}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                {Math.ceil(remainingTime)}s
+              </span>
               <FastForward className="w-4 h-4 fill-white" />
             </button>
           )}
