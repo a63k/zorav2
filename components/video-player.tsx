@@ -45,53 +45,93 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
-  const BUNNY_CDN_URL = process.env.NEXT_PUBLIC_BUNNY_CDN_URL || process.env.BUNNY_STREAM_CDN_URL || 'https://vz-zora-cdn.b-cdn.net';
+  const BUNNY_LIBRARY_ID = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '713081';
 
-  // Determine stream source URL and fallback iframe for external sources
+  // Determine stream player info (Use Bunny Stream official embed iframe to prevent 403 / 0:01 black screen)
   const streamInfo = React.useMemo(() => {
-    if (!mp4Url) return { directUrl: null, videoId: null, isExternalIframe: false, iframeSrc: '' };
+    if (!mp4Url) return { isIframe: false, iframeSrc: '', isDirectMp4: false };
     const url = mp4Url.trim();
 
     // Extract GUID pattern (e.g. 7085e7ec-7fb9-4ffc-a337-14ee7bcfe6ef)
     const guidMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    const videoId = guidMatch ? guidMatch[1] : null;
+    let videoId = guidMatch ? guidMatch[1] : null;
 
-    // 1. Bunny Mediadelivery or Pull Zone CDN -> Convert to direct MP4 for our custom player
+    // 1. Bunny Mediadelivery or Pull Zone CDN -> Use Bunny Stream iframe player for reliable HD streaming
     if (url.includes('mediadelivery.net') || url.includes('b-cdn.net') || url.includes('bunnycdn.com')) {
+      if (!videoId) {
+        const parts = url.split('/');
+        videoId = parts.find((p) => p.length >= 20 && !p.includes('.')) || null;
+      }
       if (videoId) {
         return {
-          directUrl: `${BUNNY_CDN_URL}/${videoId}/play_720p.mp4`,
-          videoId,
-          isExternalIframe: false,
-          iframeSrc: '',
-        };
-      }
-      const parts = url.split('/');
-      const possibleGuid = parts.find((p) => p.length >= 20 && !p.includes('.'));
-      if (possibleGuid) {
-        return {
-          directUrl: `${BUNNY_CDN_URL}/${possibleGuid}/play_720p.mp4`,
-          videoId: possibleGuid,
-          isExternalIframe: false,
-          iframeSrc: '',
+          isIframe: true,
+          iframeSrc: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${videoId}?autoplay=true`,
+          isDirectMp4: false,
         };
       }
     }
 
-    // 2. Generic external iframe embeds (only for non-Bunny, non-direct video links)
+    // 2. Generic external iframe embeds
     if ((url.includes('/embed/') || url.includes('embed')) && !url.includes('.mp4')) {
       const finalUrl = url.includes('?') ? `${url}&autoplay=true` : `${url}?autoplay=true`;
-      return { directUrl: null, videoId: null, isExternalIframe: true, iframeSrc: finalUrl };
+      return { isIframe: true, iframeSrc: finalUrl, isDirectMp4: false };
     }
 
-    // 3. Standard Direct MP4 / Video Stream URL
-    return { directUrl: url, videoId, isExternalIframe: false, iframeSrc: '' };
-  }, [mp4Url, BUNNY_CDN_URL]);
+    // 3. Direct Playable MP4 Video File URL
+    return { isIframe: false, iframeSrc: '', isDirectMp4: true };
+  }, [mp4Url, BUNNY_LIBRARY_ID]);
 
-  const resolvedVideoUrl = streamInfo.directUrl;
-  const videoId = streamInfo.videoId;
-  const isExternalIframe = streamInfo.isExternalIframe;
+  const isIframeEmbed = streamInfo.isIframe;
   const iframeSrcUrl = streamInfo.iframeSrc;
+  const isDirectMp4 = streamInfo.isDirectMp4;
+
+  // Listen to postMessage events from Bunny / iframe player for progress & events
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        
+        const curr = data.currentTime ?? data.data?.currentTime ?? data.time ?? data.seconds;
+        const dur = data.duration ?? data.data?.duration ?? data.totalTime;
+
+        if (typeof curr === 'number' && !isNaN(curr)) {
+          setCurrentTime(curr);
+        }
+        if (typeof dur === 'number' && !isNaN(dur) && dur > 0) {
+          setDuration(dur);
+        }
+
+        if (typeof curr === 'number' && typeof dur === 'number' && dur > 5) {
+          if (Math.abs(curr - lastSaveTimeRef.current) >= 3) {
+            lastSaveTimeRef.current = curr;
+            saveWatchProgress({
+              tmdbId,
+              mediaType,
+              season,
+              episode,
+              title,
+              posterPath,
+              backdropPath,
+              currentTime: curr,
+              duration: dur,
+            });
+          }
+        }
+
+        if (data.event === 'ended' || data.type === 'ended') {
+          if (onNextEpisode && hasNextEpisode) {
+            onNextEpisode();
+          }
+        }
+      } catch (err) {
+        // Ignore unparseable non-JSON messages
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [tmdbId, mediaType, season, episode, title, posterPath, backdropPath, onNextEpisode, hasNextEpisode]);
 
   // Check saved session token on load or when season/episode changes
   useEffect(() => {
@@ -119,9 +159,9 @@ export default function VideoPlayer({
     setShowAdModal(false);
   };
 
-  // Auto-start playback as soon as stream is unlocked or source changes
+  // Auto-start playback as soon as stream is unlocked (for direct MP4)
   useEffect(() => {
-    if (isUnlocked && videoRef.current && resolvedVideoUrl) {
+    if (isUnlocked && videoRef.current && isDirectMp4) {
       videoRef.current.load();
       const promise = videoRef.current.play();
       if (promise !== undefined) {
@@ -132,7 +172,7 @@ export default function VideoPlayer({
           });
       }
     }
-  }, [isUnlocked, resolvedVideoUrl]);
+  }, [isUnlocked, isDirectMp4, mp4Url]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -198,7 +238,7 @@ export default function VideoPlayer({
   };
 
   const remainingTime = duration > 0 ? duration - currentTime : 0;
-  const showNextButton = Boolean(hasNextEpisode && onNextEpisode && duration > 15 && remainingTime <= 15 && remainingTime > 0);
+  const isNearEnd = duration > 15 && remainingTime <= 15 && remainingTime > 0;
 
   if (!mp4Url) {
     return (
@@ -253,9 +293,9 @@ export default function VideoPlayer({
             <span>Débloquer le Lecteur HD</span>
           </button>
         </div>
-      ) : isExternalIframe ? (
-        /* Fallback External Iframe Player (for non-direct streams) */
-        <div ref={containerRef} className="relative w-full aspect-video bg-black flex items-center justify-center">
+      ) : isIframeEmbed ? (
+        /* Bunny Stream Official HD Player */
+        <div ref={containerRef} className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group/player">
           <iframe
             src={iframeSrcUrl}
             title={title}
@@ -264,13 +304,35 @@ export default function VideoPlayer({
             allowFullScreen
             referrerPolicy="origin"
           />
+
+          {/* Floating "Prochain Épisode" Button (Overlayed on Bunny player container) */}
+          {hasNextEpisode && onNextEpisode && (
+            <button
+              onClick={onNextEpisode}
+              className={`absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
+                isNearEnd ? 'animate-pulse opacity-100 scale-105' : 'opacity-90 hover:opacity-100'
+              }`}
+              title="Passer à l'épisode suivant"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Prochain épisode</span>
+              </div>
+              {isNearEnd && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                  {Math.ceil(remainingTime)}s
+                </span>
+              )}
+              <FastForward className="w-4 h-4 fill-white" />
+            </button>
+          )}
         </div>
       ) : (
-        /* Custom HTML5 Video Player (Used for Bunny Streams & Direct MP4s) */
+        /* Custom HTML5 Video Player (Used for Direct MP4s) */
         <div ref={containerRef} className="relative w-full aspect-video bg-black flex items-center justify-center group/player overflow-hidden">
           <video
             ref={videoRef}
-            src={resolvedVideoUrl || undefined}
+            src={mp4Url}
             autoPlay
             playsInline
             onPlay={() => setIsPlaying(true)}
@@ -284,31 +346,26 @@ export default function VideoPlayer({
             }}
             className="w-full h-full object-contain cursor-pointer"
             onClick={togglePlay}
-          >
-            {resolvedVideoUrl && <source src={resolvedVideoUrl} type="video/mp4" />}
-            {videoId && (
-              <>
-                <source src={`${BUNNY_CDN_URL}/${videoId}/play_1080p.mp4`} type="video/mp4" />
-                <source src={`${BUNNY_CDN_URL}/${videoId}/play_720p.mp4`} type="video/mp4" />
-                <source src={`${BUNNY_CDN_URL}/${videoId}/play_480p.mp4`} type="video/mp4" />
-              </>
-            )}
-          </video>
+          />
 
-          {/* Floating "Prochain Épisode" Button (Displayed when <= 15s remaining) */}
-          {showNextButton && (
+          {/* Floating "Prochain Épisode" Button */}
+          {hasNextEpisode && onNextEpisode && (
             <button
               onClick={onNextEpisode}
-              className="absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-pulse"
+              className={`absolute bottom-20 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
+                isNearEnd ? 'animate-pulse opacity-100 scale-105' : 'opacity-90 hover:opacity-100'
+              }`}
               title="Passer à l'épisode suivant"
             >
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-300" />
                 <span>Prochain épisode</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                {Math.ceil(remainingTime)}s
-              </span>
+              {isNearEnd && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
+                  {Math.ceil(remainingTime)}s
+                </span>
+              )}
               <FastForward className="w-4 h-4 fill-white" />
             </button>
           )}
@@ -359,4 +416,3 @@ export default function VideoPlayer({
     </div>
   );
 }
-
