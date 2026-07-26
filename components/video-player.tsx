@@ -41,14 +41,59 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
-  const isIframeEmbed = Boolean(
-    mp4Url &&
-      (mp4Url.includes('mediadelivery.net') ||
-        mp4Url.includes('/embed/') ||
-        mp4Url.includes('embed')) &&
-      !mp4Url.toLowerCase().endsWith('.mp4') &&
-      !mp4Url.toLowerCase().endsWith('.m3u8')
-  );
+  const BUNNY_LIBRARY_ID = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '713081';
+
+  // Determine if stream is Bunny/Iframe embed and resolve proper embed URL
+  const streamInfo = React.useMemo(() => {
+    if (!mp4Url) return { isIframe: false, iframeSrc: '' };
+    const url = mp4Url.trim();
+
+    // 1. Bunny Mediadelivery URL (iframe or player)
+    if (url.includes('mediadelivery.net')) {
+      let clean = url
+        .replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/')
+        .replace('player.mediadelivery.net/embed/', 'iframe.mediadelivery.net/embed/')
+        .replace('player.mediadelivery.net/', 'iframe.mediadelivery.net/embed/')
+        .replace('iframe.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/');
+
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = `https://${clean}`;
+      }
+      const finalUrl = clean.includes('?') ? `${clean}&autoplay=true` : `${clean}?autoplay=true`;
+      return { isIframe: true, iframeSrc: finalUrl };
+    }
+
+    // 2. Bunny Pull Zone CDN (b-cdn.net or bunnycdn.com)
+    if (url.includes('b-cdn.net') || url.includes('bunnycdn.com')) {
+      const match = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      if (match && match[1]) {
+        const videoId = match[1];
+        return {
+          isIframe: true,
+          iframeSrc: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${videoId}?autoplay=true`,
+        };
+      }
+      const urlParts = url.split('/');
+      const possibleGuid = urlParts.find((p) => p.length >= 20 && !p.includes('.'));
+      if (possibleGuid) {
+        return {
+          isIframe: true,
+          iframeSrc: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${possibleGuid}?autoplay=true`,
+        };
+      }
+    }
+
+    // 3. Generic iframe embed URLs
+    if (url.includes('/embed/') || url.includes('embed')) {
+      const finalUrl = url.includes('?') ? `${url}&autoplay=true` : `${url}?autoplay=true`;
+      return { isIframe: true, iframeSrc: finalUrl };
+    }
+
+    return { isIframe: false, iframeSrc: '' };
+  }, [mp4Url]);
+
+  const isIframeEmbed = streamInfo.isIframe;
+  const iframeSrcUrl = streamInfo.iframeSrc;
 
   // Check saved session token on load or when season/episode changes
   useEffect(() => {
@@ -165,13 +210,7 @@ export default function VideoPlayer({
     );
   }
 
-  let normalizedUrl = mp4Url;
-  if (normalizedUrl.includes('player.mediadelivery.net/')) {
-    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/');
-    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/embed/', 'iframe.mediadelivery.net/embed/');
-    normalizedUrl = normalizedUrl.replace('player.mediadelivery.net/', 'iframe.mediadelivery.net/embed/');
-  }
-  const iframeSrcUrl = normalizedUrl.includes('?') ? `${normalizedUrl}&autoplay=true` : `${normalizedUrl}?autoplay=true`;
+
 
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl group">
