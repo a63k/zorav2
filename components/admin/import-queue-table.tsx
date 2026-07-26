@@ -139,7 +139,17 @@ export default function ImportQueueTable() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white font-bold text-xs transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Nettoyer les terminés</span>
+              <span>Nettoyer terminés / ignorés</span>
+            </button>
+          )}
+
+          {totalCount > 0 && (
+            <button
+              onClick={() => ImportQueueService.clearAll()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold text-xs border border-rose-500/20 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Tout Vider</span>
             </button>
           )}
         </div>

@@ -162,6 +162,13 @@ export class ImportQueueService {
     this.notify();
   }
 
+  public static clearAll() {
+    this.initFromStorage();
+    this.jobs = [];
+    this.saveToStorage();
+    this.notify();
+  }
+
   public static manualSelectTmdb(jobId: string, tmdbItem: TMDBItem) {
     this.initFromStorage();
     const job = this.jobs.find((j) => j.id === jobId);
