@@ -135,6 +135,21 @@ export default function WatchPage() {
     }, 100);
   };
 
+  const totalSeasons = media?.number_of_seasons || 1;
+
+  const hasNextEpisode = mediaType === 'tv' && (
+    selectedEpisode < episodes.length || selectedSeason < totalSeasons
+  );
+
+  const handleNextEpisode = () => {
+    if (selectedEpisode < episodes.length) {
+      setSelectedEpisode((prev) => prev + 1);
+    } else if (selectedSeason < totalSeasons) {
+      setSelectedSeason((prev) => prev + 1);
+      setSelectedEpisode(1);
+    }
+  };
+
   const handleShare = () => {
     if (typeof window !== 'undefined') {
       navigator.clipboard.writeText(window.location.href);
@@ -192,7 +207,6 @@ export default function WatchPage() {
   const title = media.title || media.name || 'Titre inconnu';
   const date = media.release_date || media.first_air_date;
   const year = date ? date.split('-')[0] : '';
-  const totalSeasons = media.number_of_seasons || 1;
   const totalEpisodes = media.number_of_episodes || (episodes.length > 0 ? episodes.length : null);
 
   return (
@@ -374,6 +388,8 @@ export default function WatchPage() {
             mp4Url={mp4Url}
             posterPath={media.poster_path}
             backdropPath={media.backdrop_path}
+            onNextEpisode={hasNextEpisode ? handleNextEpisode : undefined}
+            hasNextEpisode={hasNextEpisode}
           />
         </div>
       )}
