@@ -22,7 +22,7 @@ const AUDIO_CODEC_REGEX = /\b(aac|dts|truehd|ac3|eac3|flac|mp3|5\.1|7\.1)\b/i;
 const TAGS_REGEX = /\b(proper|repack|remux|multi|vostfr|truefrench|french|subfrench|unrated|extended|directors\.cut)\b/gi;
 
 // TV Episode patterns
-const SXXEXX_REGEX = /\bS(\d{1,2})\s?E(\d{1,3})\b/i;
+const SXXEXX_REGEX = /\bS(\d{1,2})[_.\s]?E(\d{1,3})\b/i;
 const NXNN_REGEX = /\b(\d{1,2})x(\d{1,3})\b/i;
 const SEASON_EPISODE_TEXT_REGEX = /\bSeason\s?(\d{1,2})\s?Episode\s?(\d{1,3})\b/i;
 const ONLY_EPISODE_REGEX = /\b(?:Episode|Ep|E)\s?(\d{1,3})\b/i;

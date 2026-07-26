@@ -116,11 +116,18 @@ export class ImportOrchestrator {
         stepMessage: 'Création de la vidéo sur Bunny Stream...',
       });
 
-      const titleForBunny = `${selectedTmdbItem.title || selectedTmdbItem.name}${
-        parsed.seasonNumber ? ` S${parsed.seasonNumber}E${parsed.episodeNumber}` : ''
-      }`;
+      const isTv = parsed.mediaType === 'tv';
+      const collectionName = isTv
+        ? selectedTmdbItem.name || selectedTmdbItem.title || parsed.cleanTitle
+        : 'Films';
 
-      const bunnyVid = await this.bunnyService.createVideo(titleForBunny);
+      const collectionId = await this.bunnyService.getOrCreateCollection(collectionName);
+
+      const titleForBunny = isTv
+        ? `s${parsed.seasonNumber || 1}_e${parsed.episodeNumber || 1}`
+        : selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
+
+      const bunnyVid = await this.bunnyService.createVideo(titleForBunny, collectionId);
       bunnyVidId = bunnyVid.videoId;
       bunnyLibId = bunnyVid.libraryId;
 

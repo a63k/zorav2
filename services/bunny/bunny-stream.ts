@@ -33,10 +33,65 @@ export class BunnyStreamService {
     return this.libraryId;
   }
 
+  private collectionCache = new Map<string, string>();
+
   /**
-   * Create video entry in Bunny Stream Library
+   * Get existing collection ID or create a new collection in Bunny Stream by category/series name
    */
-  public async createVideo(title: string): Promise<{ videoId: string; libraryId: string }> {
+  public async getOrCreateCollection(name: string): Promise<string | undefined> {
+    if (!this.isConfigured() || !name) return undefined;
+    const cacheKey = name.trim().toLowerCase();
+    if (this.collectionCache.has(cacheKey)) {
+      return this.collectionCache.get(cacheKey);
+    }
+
+    try {
+      // 1. Fetch existing collections
+      const listUrl = `https://video.bunnycdn.com/library/${this.libraryId}/collections?itemsPerPage=100`;
+      const listRes = await fetch(listUrl, {
+        method: 'GET',
+        headers: { AccessKey: this.apiKey, accept: 'application/json' },
+      });
+
+      if (listRes.ok) {
+        const data = await listRes.json();
+        const existing = (data.items || []).find((c: any) => c.name?.toLowerCase() === cacheKey);
+        if (existing && existing.guid) {
+          this.collectionCache.set(cacheKey, existing.guid);
+          return existing.guid;
+        }
+      }
+
+      // 2. Create new collection if not found
+      const createUrl = `https://video.bunnycdn.com/library/${this.libraryId}/collections`;
+      const createRes = await fetch(createUrl, {
+        method: 'POST',
+        headers: {
+          AccessKey: this.apiKey,
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+
+      if (createRes.ok) {
+        const created = await createRes.json();
+        if (created.guid) {
+          this.collectionCache.set(cacheKey, created.guid);
+          return created.guid;
+        }
+      }
+    } catch (err) {
+      console.error('Error in getOrCreateCollection:', err);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Create video entry in Bunny Stream Library with optional collectionId category
+   */
+  public async createVideo(title: string, collectionId?: string): Promise<{ videoId: string; libraryId: string }> {
     if (!this.isConfigured()) {
       // Mock video ID for testing environment without Bunny keys
       const mockVideoId = `bunny_vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -44,6 +99,11 @@ export class BunnyStreamService {
     }
 
     const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos`;
+    const payload: Record<string, any> = { title };
+    if (collectionId) {
+      payload.collectionId = collectionId;
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -51,7 +111,7 @@ export class BunnyStreamService {
         'Content-Type': 'application/json',
         accept: 'application/json',
       },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
