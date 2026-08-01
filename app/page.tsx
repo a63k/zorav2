@@ -6,16 +6,17 @@ import AdsterraAd from '@/components/adsterra-ad';
 import TopTenSection from '@/components/top-ten-section';
 import GenreGrid from '@/components/genre-grid';
 import VipPromoBanner from '@/components/vip-promo-banner';
-import { fetchTrending, fetchPopularMovies, fetchPopularTVShows } from '@/lib/tmdb';
+import { fetchTrending, fetchPopularMovies, fetchPopularTVShows, fetchFrenchContent } from '@/lib/tmdb';
 import { getAllMediaLinks } from '@/lib/store';
 
 export const revalidate = 1800; // revalidate every 30 minutes
 
 export default async function HomePage() {
-  const [trending, movies, tvShows, customLinks] = await Promise.all([
+  const [trending, movies, tvShows, frenchContent, customLinks] = await Promise.all([
     fetchTrending('all'),
     fetchPopularMovies(),
     fetchPopularTVShows(),
+    fetchFrenchContent(),
     getAllMediaLinks(),
   ]);
 
@@ -54,6 +55,15 @@ export default async function HomePage() {
       <div id="genres">
         <GenreGrid />
       </div>
+
+      {/* French Content (VF) Section */}
+      {frenchContent.length > 0 && (
+        <MediaGrid
+          title="Disponible en VF 🇫🇷"
+          items={frenchContent}
+          customStreamIds={customStreamIds}
+        />
+      )}
 
       {/* Popular Movies Section */}
       <MediaGrid

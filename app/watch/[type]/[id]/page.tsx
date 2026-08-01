@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { fetchMediaDetails, fetchSeasonDetails, TMDBItem, TMDBEpisodeInfo, getTMDBImageUrl } from '@/lib/tmdb';
+import { fetchMediaDetails, fetchSeasonDetails, TMDBItem, TMDBEpisodeInfo, getTMDBImageUrl, getLanguageBadge } from '@/lib/tmdb';
 
 import { getWatchHistory, saveWatchProgress } from '@/lib/history';
 import VideoPlayer from '@/components/video-player';
@@ -268,10 +268,25 @@ export default function WatchPage() {
                 </span>
               )}
 
-              {/* Genre Pills */}
-              <span className="text-gray-400">
-                HD · Français / VOSTFR
-              </span>
+              {/* Language Badge */}
+              {media && (() => {
+                const badge = getLanguageBadge(media);
+                if (badge === 'VF') return (
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 font-bold text-xs">
+                    🇫🇷 VF
+                  </span>
+                );
+                if (badge === 'VOSTFR') return (
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-300 font-bold text-xs">
+                    VOSTFR
+                  </span>
+                );
+                return (
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gray-500/20 border border-gray-500/30 text-gray-400 font-bold text-xs">
+                    VO
+                  </span>
+                );
+              })()}
             </div>
           </div>
 

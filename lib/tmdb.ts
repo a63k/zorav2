@@ -17,6 +17,8 @@ export interface TMDBItem {
   number_of_seasons?: number;
   number_of_episodes?: number;
   seasons?: TMDBSeasonInfo[];
+  original_language?: string;
+  spoken_languages?: { iso_639_1: string; name: string }[];
 }
 
 export interface TMDBSeasonInfo {
@@ -111,6 +113,41 @@ export async function fetchSeasonDetails(tvId: number | string, seasonNumber: nu
   } catch (error) {
     console.error('TMDB fetchSeasonDetails error:', error);
     return null;
+  }
+}
+
+export function getLanguageBadge(item: TMDBItem): 'VF' | 'VOSTFR' | 'VO' {
+  const origLang = item.original_language;
+  if (origLang === 'fr') return 'VF';
+  const spoken = item.spoken_languages;
+  if (spoken && spoken.some(l => l.iso_639_1 === 'fr')) return 'VF';
+  // For popular international content, French subtitles are almost always available
+  return 'VOSTFR';
+}
+
+export async function fetchFrenchContent(): Promise<TMDBItem[]> {
+  try {
+    const [moviesRes, tvRes] = await Promise.all([
+      fetch(`${BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=fr-FR&with_original_language=fr&sort_by=popularity.desc&vote_count.gte=50`, {
+        next: { revalidate: 3600 }
+      }),
+      fetch(`${BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&language=fr-FR&with_original_language=fr&sort_by=popularity.desc&vote_count.gte=20`, {
+        next: { revalidate: 3600 }
+      }),
+    ]);
+
+    const moviesData = moviesRes.ok ? await moviesRes.json() : { results: [] };
+    const tvData = tvRes.ok ? await tvRes.json() : { results: [] };
+
+    const movies = (moviesData.results || []).map((item: any) => ({ ...item, media_type: 'movie' as const, original_language: 'fr' }));
+    const tvShows = (tvData.results || []).map((item: any) => ({ ...item, media_type: 'tv' as const, original_language: 'fr' }));
+
+    // Merge and sort by popularity (vote_average * vote_count approximation)
+    const merged = [...movies, ...tvShows].sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
+    return merged.slice(0, 20);
+  } catch (error) {
+    console.error('TMDB fetchFrenchContent error:', error);
+    return [];
   }
 }
 

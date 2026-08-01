@@ -13,6 +13,7 @@ export default function MediaCard({ item, hasCustomStream }: MediaCardProps) {
   const date = item.release_date || item.first_air_date;
   const year = date ? date.split('-')[0] : '';
   const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
+  const isVF = item.original_language === 'fr';
 
   return (
     <Link
@@ -43,9 +44,9 @@ export default function MediaCard({ item, hasCustomStream }: MediaCardProps) {
           <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white border border-white/10">
             {mediaType === 'movie' ? 'Film' : 'Série'}
           </span>
-          {hasCustomStream && (
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/90 text-white shadow">
-              MP4 Débloqué
+          {isVF && (
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-600/90 text-white shadow border border-blue-400/30">
+              🇫🇷 VF
             </span>
           )}
         </div>
@@ -66,7 +67,9 @@ export default function MediaCard({ item, hasCustomStream }: MediaCardProps) {
           </h3>
           <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
             <span>{year || 'Récent'}</span>
-            <span className="text-[10px] text-purple-400 font-semibold uppercase">Zora HD</span>
+            <span className={`text-[10px] font-semibold uppercase ${isVF ? 'text-blue-400' : 'text-purple-400'}`}>
+              {isVF ? 'VF' : 'VOSTFR'}
+            </span>
           </div>
         </div>
       </div>
