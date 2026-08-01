@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { fetchMediaDetails, fetchSeasonDetails, TMDBItem, TMDBEpisodeInfo, getTMDBImageUrl } from '@/lib/tmdb';
-import { getMediaLink } from '@/lib/store';
+
 import { getWatchHistory, saveWatchProgress } from '@/lib/history';
 import VideoPlayer from '@/components/video-player';
 import AdsterraAd from '@/components/adsterra-ad';
@@ -39,7 +39,7 @@ export default function WatchPage() {
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [selectedEpisode, setSelectedEpisode] = useState(1);
   const [episodes, setEpisodes] = useState<TMDBEpisodeInfo[]>([]);
-  const [mp4Url, setMp4Url] = useState<string | null>(null);
+
 
   // UI Interactive states
   const [activeTab, setActiveTab] = useState<'episodes' | 'synopsis' | 'trailer'>('synopsis');
@@ -109,23 +109,7 @@ export default function WatchPage() {
     loadSeason();
   }, [tmdbId, mediaType, selectedSeason]);
 
-  // Fetch hosted MP4 stream link from store/Supabase for this target
-  useEffect(() => {
-    async function checkStream() {
-      const link = await getMediaLink(
-        tmdbId,
-        mediaType,
-        mediaType === 'tv' ? selectedSeason : null,
-        mediaType === 'tv' ? selectedEpisode : null
-      );
-      if (link && link.mp4_url) {
-        setMp4Url(link.mp4_url);
-      } else {
-        setMp4Url(null);
-      }
-    }
-    if (tmdbId) checkStream();
-  }, [tmdbId, mediaType, selectedSeason, selectedEpisode]);
+
 
   const handlePlayEpisode = (epNum: number) => {
     setSelectedEpisode(epNum);
@@ -385,7 +369,6 @@ export default function WatchPage() {
             season={mediaType === 'tv' ? selectedSeason : null}
             episode={mediaType === 'tv' ? selectedEpisode : null}
             title={title}
-            mp4Url={mp4Url}
             posterPath={media.poster_path}
             backdropPath={media.backdrop_path}
             onNextEpisode={hasNextEpisode ? handleNextEpisode : undefined}
