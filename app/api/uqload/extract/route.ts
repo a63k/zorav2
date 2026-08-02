@@ -25,6 +25,13 @@ function unpackDeanEdwards(p: string, a: number, c: number, k: string[]): string
  */
 function normalizeUqloadUrl(rawUrl: string): string {
   let url = rawUrl.trim();
+
+  // If user pasted an HTML iframe tag: <iframe src="https://..." ...>
+  const iframeSrcMatch = url.match(/src=["'](https?:\/\/[^"']+)["']/i);
+  if (iframeSrcMatch && iframeSrcMatch[1]) {
+    url = iframeSrcMatch[1];
+  }
+
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = `https://${url}`;
   }
@@ -37,12 +44,12 @@ function normalizeUqloadUrl(rawUrl: string): string {
       return url;
     }
 
-    // Example: https://uqload.is/yil2pu24ols0.html -> https://uqload.is/embed-yil2pu24ols0.html
-    // Example: https://uqload.is/yil2pu24ols0 -> https://uqload.is/embed-yil2pu24ols0.html
-    const fileIdMatch = parsed.pathname.match(/\/(?:embed-)?([a-zA-Z0-9]+)(?:\.html)?/);
+    // Support /e/id, /embed-id.html, /id.html
+    const fileIdMatch = parsed.pathname.match(/\/(?:embed-|e\/)?([a-zA-Z0-9]+)(?:\.html)?/);
     if (fileIdMatch && fileIdMatch[1]) {
       const fileId = fileIdMatch[1];
-      return `${parsed.protocol}//${parsed.host}/embed-${fileId}.html`;
+      const searchParams = parsed.search || '';
+      return `${parsed.protocol}//${parsed.host}/embed-${fileId}.html${searchParams}`;
     }
   } catch (e) {
     // If URL parsing fails, return raw url

@@ -139,6 +139,12 @@ export default function AdminPage() {
       ? (tmdbPreview.title || tmdbPreview.name || `TMDB #${tmdbIdInput}`)
       : `TMDB #${tmdbIdInput}`;
 
+    let cleanUrl = mp4UrlInput.trim();
+    const iframeSrcMatch = cleanUrl.match(/src=["'](https?:\/\/[^"']+)["']/i);
+    if (iframeSrcMatch && iframeSrcMatch[1]) {
+      cleanUrl = iframeSrcMatch[1];
+    }
+
     await saveMediaLink({
       tmdb_id: Number(tmdbIdInput.trim()),
       media_type: mediaType,
@@ -147,7 +153,7 @@ export default function AdminPage() {
       title,
       poster_path: tmdbPreview?.poster_path || null,
       backdrop_path: tmdbPreview?.backdrop_path || null,
-      mp4_url: mp4UrlInput.trim(),
+      mp4_url: cleanUrl,
     });
 
     setSaveSuccess(`Flux MP4 pour "${title}" enregistré avec succès!`);
