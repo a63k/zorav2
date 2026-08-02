@@ -344,7 +344,8 @@ export default function VideoPlayer({
     setManualLinkSuccess(false);
 
     try {
-      const res = await fetch(`/api/uqload/extract?url=${encodeURIComponent(uqloadInput.trim())}`);
+      const targetUrl = uqloadInput.trim();
+      const res = await fetch(`/api/uqload/extract?url=${encodeURIComponent(targetUrl)}`);
       const data = await res.json();
 
       if (data.success && data.streamUrl) {
@@ -352,6 +353,18 @@ export default function VideoPlayer({
         setExtractedSourceType('uqload');
         setManualLinkSuccess(true);
         setShowLinkInputModal(false);
+
+        // Auto save to local store / DB so it persists for this title
+        saveMediaLink({
+          tmdb_id: tmdbId,
+          media_type: mediaType,
+          season_number: mediaType === 'tv' ? (season || 1) : null,
+          episode_number: mediaType === 'tv' ? (episode || 1) : null,
+          title,
+          poster_path: posterPath || null,
+          backdrop_path: backdropPath || null,
+          mp4_url: targetUrl,
+        }).catch(() => {});
       } else {
         setExtractError(data.error || 'Erreur lors de l\'extraction du flux.');
       }
@@ -670,14 +683,18 @@ export default function VideoPlayer({
             referrerPolicy="origin"
           />
 
-          {/* Floating Button to Enter Uqload Link for direct ad-free stream */}
-          <div className="absolute top-4 right-4 z-30 opacity-0 group-hover/player:opacity-100 transition-opacity">
+          {/* Prominent Overlay Bar to Add/Load Uqload Link when fallback stream fails or is unavailable */}
+          <div className="absolute top-4 inset-x-4 z-30 flex items-center justify-between pointer-events-none">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/80 border border-white/10 text-gray-300 text-[11px] font-bold backdrop-blur-md shadow-xl pointer-events-auto">
+              <span>Lecteur Externe (Lecteur #1)</span>
+            </div>
+
             <button
               onClick={() => setShowLinkInputModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-black/80 border border-purple-500/50 text-white text-xs font-bold backdrop-blur-md shadow-xl hover:scale-105 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-zora-gradient text-white text-xs font-black shadow-2xl shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all border border-white/20 pointer-events-auto"
             >
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>Charger via Uqload Sans Pub</span>
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              <span>Charger via Uqload (Sans Pub)</span>
             </button>
           </div>
 
