@@ -1,6 +1,7 @@
 import { MediaLink, AdsterraConfig, supabase } from './supabase';
 
 const LOCAL_STORAGE_KEY = 'zora_media_links_v1';
+const INITIALIZED_KEY = 'zora_media_links_initialized';
 
 // Initial high quality sample streams for testing out of the box
 const INITIAL_DEMO_LINKS: MediaLink[] = [
@@ -62,10 +63,24 @@ export async function getAllMediaLinks(): Promise<MediaLink[]> {
     }
   }
 
+  // If Supabase database was queried successfully, treat DB as authoritative source
+  if (isDbSuccess) {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dbLinks));
+        localStorage.setItem(INITIALIZED_KEY, 'true');
+      } catch (e) {}
+    }
+    return dbLinks;
+  }
+
   // 2. Load fallback / cached links from localStorage
   let localLinks: MediaLink[] = [];
+  let isInitialized = false;
+
   if (typeof window !== 'undefined') {
     try {
+      isInitialized = Boolean(localStorage.getItem(INITIALIZED_KEY));
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (raw) {
         localLinks = JSON.parse(raw);
@@ -75,22 +90,15 @@ export async function getAllMediaLinks(): Promise<MediaLink[]> {
     }
   }
 
-  // 3. Return database links if available, merged with any local links
-  if (isDbSuccess && dbLinks.length > 0) {
-    // Merge local links that might not be in dbLinks yet
-    const dbMap = new Set(dbLinks.map(l => `${l.tmdb_id}_${l.media_type}_${l.season_number || 1}_${l.episode_number || 1}`));
-    const uniqueLocal = localLinks.filter(l => !dbMap.has(`${l.tmdb_id}_${l.media_type}_${l.season_number || 1}_${l.episode_number || 1}`));
-    return [...dbLinks, ...uniqueLocal];
-  }
-
-  if (localLinks.length > 0) {
+  if (isInitialized || localLinks.length > 0) {
     return localLinks;
   }
 
-  // Seed default demo links if empty
+  // Seed default demo links ONLY if never initialized
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_DEMO_LINKS));
+      localStorage.setItem(INITIALIZED_KEY, 'true');
     } catch (e) {}
   }
   return INITIAL_DEMO_LINKS;
@@ -173,6 +181,7 @@ export async function saveMediaLink(link: Omit<MediaLink, 'id' | 'created_at'>):
       }
 
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(links));
+      localStorage.setItem(INITIALIZED_KEY, 'true');
     } catch (e) {
       console.error('LocalStorage write error:', e);
     }
@@ -182,11 +191,33 @@ export async function saveMediaLink(link: Omit<MediaLink, 'id' | 'created_at'>):
 }
 
 export async function deleteMediaLink(id: string): Promise<boolean> {
+  const links = await getAllMediaLinks();
+  const target = links.find(item => item.id === id);
+
   if (isRealSupabaseConfigured()) {
     try {
-      const { error } = await supabase.from('media_links').delete().eq('id', id);
-      if (error) {
-        console.error('❌ Supabase delete error:', error.message);
+      // 1. Delete by primary key id if available
+      const { error: err1 } = await supabase.from('media_links').delete().eq('id', id);
+      if (err1) {
+        console.error('❌ Supabase delete by ID error:', err1.message);
+      }
+
+      // 2. Delete by TMDB target match to ensure complete database purge
+      if (target) {
+        const query = supabase
+          .from('media_links')
+          .delete()
+          .eq('tmdb_id', target.tmdb_id)
+          .eq('media_type', target.media_type);
+
+        if (target.media_type === 'tv') {
+          query.eq('season_number', target.season_number || 1).eq('episode_number', target.episode_number || 1);
+        }
+
+        const { error: err2 } = await query;
+        if (err2) {
+          console.error('❌ Supabase delete by target error:', err2.message);
+        }
       }
     } catch (err) {
       console.error('❌ Supabase delete exception:', err);
@@ -195,9 +226,19 @@ export async function deleteMediaLink(id: string): Promise<boolean> {
 
   if (typeof window !== 'undefined') {
     try {
-      const links = await getAllMediaLinks();
-      const updated = links.filter(item => item.id !== id);
+      const updated = links.filter(item => {
+        if (item.id === id) return false;
+        if (target && item.tmdb_id === target.tmdb_id && item.media_type === target.media_type) {
+          if (target.media_type === 'tv') {
+            return !(item.season_number === target.season_number && item.episode_number === target.episode_number);
+          }
+          return false;
+        }
+        return true;
+      });
+
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(INITIALIZED_KEY, 'true');
     } catch (e) {
       console.error('LocalStorage delete error:', e);
     }
@@ -248,39 +289,27 @@ export async function getAdsterraConfig(): Promise<AdsterraConfig> {
 export async function saveAdsterraConfig(config: AdsterraConfig): Promise<boolean> {
   let isSaved = false;
 
-  // 1. Save to Supabase
   if (isRealSupabaseConfigured()) {
     try {
-      const { error } = await supabase.from('site_settings').upsert(
-        {
-          key: 'adsterra_config',
-          value: config,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'key' }
-      );
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert(
+          { key: 'adsterra_config', value: config, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        );
 
-      if (error) {
-        console.error('❌ Error saving Adsterra config to Supabase:', error.message);
-      } else {
-        console.log('✅ Adsterra config saved to Supabase');
+      if (!error) {
         isSaved = true;
       }
-    } catch (err) {
-      console.error('❌ Supabase save exception for Adsterra config:', err);
-    }
+    } catch (e) {}
   }
 
-  // 2. Always sync with LocalStorage
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(ADSTERRA_STORAGE_KEY, JSON.stringify(config));
       isSaved = true;
-    } catch (e) {
-      console.error('LocalStorage write error for Adsterra config:', e);
-    }
+    } catch (e) {}
   }
 
   return isSaved;
 }
-

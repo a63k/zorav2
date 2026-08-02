@@ -47,14 +47,6 @@ const nextConfig = {
       },
     ];
   },
-  async rewrites() {
-    return [
-      {
-        source: '/embed/:path*',
-        destination: 'https://vidsrc-embed.ru/embed/:path*',
-      },
-    ];
-  },
 };
 
 module.exports = nextConfig;

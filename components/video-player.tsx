@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Lock,
   Sparkles,
@@ -15,6 +16,8 @@ import {
   RotateCcw,
   RotateCw,
   Settings,
+  Film,
+  PlusCircle,
 } from 'lucide-react';
 import Hls from 'hls.js';
 import { verifyStreamToken } from '@/lib/stream-token';
@@ -72,18 +75,6 @@ export default function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-
-  // Generate fallback embed URL
-  const fallbackEmbedUrl = useMemo(() => {
-    const base = '/embed';
-    if (mediaType === 'movie') {
-      return `${base}/movie?tmdb=${tmdbId}&ds_lang=fr&autoplay=1`;
-    } else {
-      const s = season || 1;
-      const e = episode || 1;
-      return `${base}/tv?tmdb=${tmdbId}&season=${s}&episode=${e}&ds_lang=fr&autoplay=1&autonext=1`;
-    }
-  }, [tmdbId, mediaType, season, episode]);
 
   // Load stream source & resolve extractors
   useEffect(() => {
@@ -610,41 +601,29 @@ export default function VideoPlayer({
           )}
         </div>
       ) : (
-        /* Fallback embed player iframe */
-        <div
-          ref={containerRef}
-          className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group/player"
-        >
-          <iframe
-            src={fallbackEmbedUrl}
-            title={title}
-            className="w-full h-full border-0"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            referrerPolicy="origin"
-          />
+        /* NO STREAM / DELETED MEDIA SCREEN */
+        <div className="relative w-full aspect-video bg-zora-dark flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-xl">
+            <Film className="w-8 h-8 text-purple-400/80" />
+          </div>
 
-          {/* Floating "Prochain Épisode" Button */}
-          {hasNextEpisode && onNextEpisode && (
-            <button
-              onClick={onNextEpisode}
-              className={`absolute bottom-6 right-6 z-30 flex items-center gap-3 px-5 py-3 rounded-2xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-xs shadow-2xl shadow-purple-500/50 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 ${
-                isNearEnd ? 'opacity-100 animate-pulse scale-105' : 'opacity-0 group-hover/player:opacity-100'
-              }`}
-              title="Passer à l'épisode suivant"
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
-                <span>Prochain épisode</span>
-              </div>
-              {isNearEnd && remainingTime > 0 && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/40 text-purple-200 border border-white/10">
-                  {Math.ceil(remainingTime)}s
-                </span>
-              )}
-              <FastForward className="w-4 h-4 fill-white" />
-            </button>
-          )}
+          <div className="space-y-1.5 max-w-md">
+            <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Lecteur Zora VF
+            </span>
+            <h3 className="text-xl font-black text-white">Vidéo Non Disponible</h3>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Aucun flux vidéo VF n'a été configuré pour &quot;{title}&quot;. Vous pouvez en ajouter un rapidement depuis le panneau d&apos;administration.
+            </p>
+          </div>
+
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/10 transition-all hover:scale-105 active:scale-95"
+          >
+            <PlusCircle className="w-4 h-4 text-purple-400" />
+            <span>Ajouter un lien dans l&apos;Admin</span>
+          </Link>
         </div>
       )}
     </div>
