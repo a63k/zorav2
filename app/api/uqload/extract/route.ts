@@ -81,16 +81,22 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
 
     const serverWord = k.find((x) => x.startsWith('strm')) || 'strm4';
     const hlsWord = k.find((x) => x.startsWith('hls')) || 'hls2';
-    const fileIdL = k.find((x) => x.includes('_l')) || '';
-    const tokenT = k.find((x) => x.length > 25 && !x.startsWith('http')) || '';
+    const fileIdL = k.find((x) => x.endsWith('_l')) || `${fileCode}_l`;
+    const realCode = fileIdL.replace('_l', '');
+
+    // The HLS master token is the 43-character token in k
+    const tokenT = k.find((x) => x.length >= 40 && !x.startsWith('http')) || k.find((x) => x.length > 25 && !x.startsWith('http')) || '';
     const paramS = k.find((x) => x.length === 10 && !isNaN(Number(x)) && Number(x) > 1600000000) || '';
     const paramE = k.find((x) => x === '43200') || '43200';
     const paramV = k.find((x) => x.length === 6 && !isNaN(Number(x))) || '185745';
-    const folder1 = k.find((x) => x.length === 2 && !isNaN(Number(x))) || '02';
-    const folder2 = k.find((x) => x.length === 5 && !isNaN(Number(x))) || '';
+
+    // Extract image folder path (e.g. 02/05413) from response HTML if available
+    const imgMatch = html.match(/strm\d+\.uqload\.is\/i\/(\d+)\/(\d+)\//);
+    const folder1 = imgMatch ? imgMatch[1] : (k.find((x) => x.length === 2 && !isNaN(Number(x))) || '02');
+    const folder2 = imgMatch ? imgMatch[2] : (k.find((x) => x.length === 5 && !isNaN(Number(x))) || '');
 
     if (serverWord && fileIdL && tokenT && paramS) {
-      const constructed = `https://${serverWord}.uqload.is/${hlsWord}/${folder1}/${folder2}/${fileIdL}/master.m3u8?t=${tokenT}&s=${paramS}&e=${paramE}&v=${paramV}&i=0.0&sp=0&fr=${fileCode}`;
+      const constructed = `https://${serverWord}.uqload.is/${hlsWord}/${folder1}/${folder2}/${fileIdL}/master.m3u8?t=${tokenT}&s=${paramS}&e=${paramE}&v=${paramV}&i=0.0&sp=0&fr=${realCode}`;
       return constructed;
     }
   }
