@@ -11,13 +11,8 @@ import {
   VolumeX,
   Maximize,
   Minimize,
-  RotateCcw,
-  Settings,
-  Link as LinkIcon,
-  Check,
-  AlertCircle,
   Loader2,
-  ShieldCheck,
+  Film,
 } from 'lucide-react';
 import Hls from 'hls.js';
 import { verifyStreamToken } from '@/lib/stream-token';
@@ -56,11 +51,9 @@ export default function VideoPlayer({
   const [showAdModal, setShowAdModal] = useState(false);
 
   // Uqload Extraction & Stream States
-  const [uqloadInput, setUqloadInput] = useState('');
-  const [isExtracting, setIsExtracting] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(true);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
-  const [extractedSourceType, setExtractedSourceType] = useState<'uqload' | 'direct' | 'embed'>('embed');
 
   // Video Native Player States
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -77,10 +70,8 @@ export default function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [showLinkInputModal, setShowLinkInputModal] = useState(false);
-  const [manualLinkSuccess, setManualLinkSuccess] = useState(false);
 
-  // Generate fallback vidsrc embed URL
+  // Generate fallback embed URL
   const fallbackEmbedUrl = useMemo(() => {
     const base = '/embed';
     if (mediaType === 'movie') {
@@ -92,7 +83,7 @@ export default function VideoPlayer({
     }
   }, [tmdbId, mediaType, season, episode]);
 
-  // Load configured media link or extract Uqload stream
+  // Load configured media link from Admin and extract Uqload stream automatically
   useEffect(() => {
     async function loadStreamSource() {
       setIsExtracting(true);
@@ -100,7 +91,7 @@ export default function VideoPlayer({
 
       let targetLink = customUrl;
 
-      // Check if saved in local store / DB
+      // Check if saved in Admin store / DB
       if (!targetLink) {
         const stored = await getMediaLink(tmdbId, mediaType, season, episode);
         if (stored && stored.mp4_url) {
@@ -111,33 +102,28 @@ export default function VideoPlayer({
       if (!targetLink) {
         setIsExtracting(false);
         setActiveStreamUrl(null);
-        setExtractedSourceType('embed');
         return;
       }
 
-      // Extract Uqload link or play direct stream
+      // Automatically extract Uqload link or play direct stream
       try {
         const res = await fetch(`/api/uqload/extract?url=${encodeURIComponent(targetLink)}`);
         const data = await res.json();
 
         if (data.success && data.streamUrl) {
           setActiveStreamUrl(data.streamUrl);
-          setExtractedSourceType(targetLink.includes('uqload') ? 'uqload' : 'direct');
         } else {
-          // If extraction fails or target is direct MP4/stream
+          // If direct MP4 or fallback
           if (targetLink.includes('.mp4') || targetLink.includes('.m3u8')) {
             setActiveStreamUrl(targetLink);
-            setExtractedSourceType('direct');
           } else {
-            setExtractError(data.error || 'Extraction du flux Uqload impossible');
+            setExtractError(data.error || 'Impossible d\'extraire le flux Uqload.');
             setActiveStreamUrl(null);
-            setExtractedSourceType('embed');
           }
         }
       } catch (err: any) {
-        setExtractError('Erreur réseau lors de la récupération du flux Uqload');
+        setExtractError('Erreur de connexion au serveur Uqload');
         setActiveStreamUrl(null);
-        setExtractedSourceType('embed');
       } finally {
         setIsExtracting(false);
       }
@@ -184,7 +170,7 @@ export default function VideoPlayer({
       hlsRef.current = null;
     }
 
-    // Determine stream proxy URL if it's an Uqload m3u8 stream to prevent CORS issues
+    // Proxy m3u8 through /api/uqload/proxy to prevent CORS issues
     const finalStreamUrl =
       activeStreamUrl.includes('.m3u8') && activeStreamUrl.includes('uqload')
         ? `/api/uqload/proxy?url=${encodeURIComponent(activeStreamUrl)}`
@@ -337,44 +323,6 @@ export default function VideoPlayer({
     }
   };
 
-  const handleManualExtract = async () => {
-    if (!uqloadInput.trim()) return;
-    setIsExtracting(true);
-    setExtractError(null);
-    setManualLinkSuccess(false);
-
-    try {
-      const targetUrl = uqloadInput.trim();
-      const res = await fetch(`/api/uqload/extract?url=${encodeURIComponent(targetUrl)}`);
-      const data = await res.json();
-
-      if (data.success && data.streamUrl) {
-        setActiveStreamUrl(data.streamUrl);
-        setExtractedSourceType('uqload');
-        setManualLinkSuccess(true);
-        setShowLinkInputModal(false);
-
-        // Auto save to local store / DB so it persists for this title
-        saveMediaLink({
-          tmdb_id: tmdbId,
-          media_type: mediaType,
-          season_number: mediaType === 'tv' ? (season || 1) : null,
-          episode_number: mediaType === 'tv' ? (episode || 1) : null,
-          title,
-          poster_path: posterPath || null,
-          backdrop_path: backdropPath || null,
-          mp4_url: targetUrl,
-        }).catch(() => {});
-      } else {
-        setExtractError(data.error || 'Erreur lors de l\'extraction du flux.');
-      }
-    } catch (err: any) {
-      setExtractError('Erreur réseau');
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '00:00';
     const m = Math.floor(secs / 60);
@@ -403,73 +351,6 @@ export default function VideoPlayer({
         onUnlocked={handleUnlocked}
       />
 
-      {/* Manual Link Input Modal */}
-      {showLinkInputModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-zora-card border border-purple-500/30 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <LinkIcon className="w-5 h-5 text-purple-400" />
-                <span>Extraire un Lien Uqload</span>
-              </h3>
-              <button
-                onClick={() => setShowLinkInputModal(false)}
-                className="text-gray-400 hover:text-white text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Collez un lien Uqload (ex: <code className="text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded">https://uqload.is/embed-xxx.html</code>) pour lire la vidéo directement dans le lecteur Zora sans aucune publicité.
-            </p>
-
-            <div className="space-y-2">
-              <input
-                type="url"
-                value={uqloadInput}
-                onChange={(e) => setUqloadInput(e.target.value)}
-                placeholder="https://uqload.is/embed-yil2pu24ols0.html"
-                className="w-full px-4 py-3 rounded-2xl bg-black/60 border border-white/15 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-purple-500 transition-all"
-              />
-            </div>
-
-            {extractError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{extractError}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setShowLinkInputModal(false)}
-                className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold transition-all"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleManualExtract}
-                disabled={isExtracting || !uqloadInput.trim()}
-                className="px-6 py-2.5 rounded-xl bg-zora-gradient hover:opacity-95 text-white text-xs font-bold shadow-lg shadow-purple-500/30 disabled:opacity-50 flex items-center gap-2 transition-all"
-              >
-                {isExtracting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Extraction...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Lancer le flux Uqload</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Locked Overlay Screen if Token not present or invalid */}
       {!isUnlocked ? (
         <div className="relative w-full aspect-video bg-zora-dark flex flex-col items-center justify-center p-6 text-center space-y-5">
@@ -497,8 +378,18 @@ export default function VideoPlayer({
             <span>Débloquer le Lecteur HD</span>
           </button>
         </div>
+      ) : isExtracting ? (
+        /* LOADING STATE WHILE EXTRACTING UQLOAD STREAM */
+        <div className="relative w-full aspect-video bg-zora-dark flex flex-col items-center justify-center space-y-3 p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-zora-gradient p-0.5 animate-pulse shadow-xl shadow-purple-500/30">
+            <div className="w-full h-full bg-zora-bg rounded-[14px] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            </div>
+          </div>
+          <p className="text-xs font-bold text-gray-300">Extraction du flux vidéo Uqload en cours...</p>
+        </div>
       ) : activeStreamUrl ? (
-        /* NATIVE ZORA VIDEO PLAYER (Ad-Free Uqload Stream) */
+        /* NATIVE AD-FREE ZORA VIDEO PLAYER */
         <div
           ref={containerRef}
           className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group/player select-none"
@@ -514,21 +405,6 @@ export default function VideoPlayer({
             className="w-full h-full object-contain cursor-pointer"
             playsInline
           />
-
-          {/* Top Source Badge Bar */}
-          <div className="absolute top-4 left-4 z-20 flex items-center gap-2 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/70 border border-purple-500/40 text-purple-300 text-[11px] font-extrabold backdrop-blur-md shadow-lg">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>FLUX DIRECT UQLOAD HD · SANS PUB</span>
-            </div>
-            <button
-              onClick={() => setShowLinkInputModal(true)}
-              className="p-1.5 rounded-xl bg-black/70 border border-white/10 hover:border-purple-500 text-gray-300 hover:text-white backdrop-blur-md transition-all"
-              title="Changer le lien Uqload"
-            >
-              <LinkIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
 
           {/* Play/Pause Overlay Indicator on Video Center Click */}
           <div
@@ -669,7 +545,7 @@ export default function VideoPlayer({
           )}
         </div>
       ) : (
-        /* Fallback iframe player with option to add Uqload link */
+        /* Fallback iframe player */
         <div
           ref={containerRef}
           className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group/player"
@@ -682,21 +558,6 @@ export default function VideoPlayer({
             allowFullScreen
             referrerPolicy="origin"
           />
-
-          {/* Prominent Overlay Bar to Add/Load Uqload Link when fallback stream fails or is unavailable */}
-          <div className="absolute top-4 inset-x-4 z-30 flex items-center justify-between pointer-events-none">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/80 border border-white/10 text-gray-300 text-[11px] font-bold backdrop-blur-md shadow-xl pointer-events-auto">
-              <span>Lecteur Externe (Lecteur #1)</span>
-            </div>
-
-            <button
-              onClick={() => setShowLinkInputModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-zora-gradient text-white text-xs font-black shadow-2xl shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all border border-white/20 pointer-events-auto"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              <span>Charger via Uqload (Sans Pub)</span>
-            </button>
-          </div>
 
           {/* Floating "Prochain Épisode" Button */}
           {hasNextEpisode && onNextEpisode && (
