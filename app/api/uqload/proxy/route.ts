@@ -26,12 +26,27 @@ export async function GET(request: NextRequest) {
 
     const contentType = response.headers.get('content-type') || '';
 
-    // If it's an m3u8 playlist, rewrite relative chunk URLs to pass through proxy
+    // If it's an m3u8 playlist, rewrite all relative/absolute chunk & URI URLs to pass through proxy
     if (targetUrl.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('m3u8')) {
       const text = await response.text();
       const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
 
-      const rewrittenText = text
+      // 1. Rewrite any URI="https://..." or URI="relative.m3u8" inside tags (#EXT-X-MEDIA, #EXT-X-MAP, #EXT-X-KEY, etc.)
+      let rewrittenText = text.replace(/URI=["']([^"']+)["']/gi, (match, urlAttr) => {
+        let fullUrl: string;
+        if (urlAttr.startsWith('http://') || urlAttr.startsWith('https://')) {
+          fullUrl = urlAttr;
+        } else if (urlAttr.startsWith('/')) {
+          fullUrl = `${parsedTarget.protocol}//${parsedTarget.host}${urlAttr}`;
+        } else {
+          fullUrl = `${baseUrl}${urlAttr}`;
+        }
+        const proxyUrl = `/api/uqload/proxy?url=${encodeURIComponent(fullUrl)}`;
+        return `URI="${proxyUrl}"`;
+      });
+
+      // 2. Rewrite non-comment segment & playlist URLs
+      rewrittenText = rewrittenText
         .split('\n')
         .map((line) => {
           const trimmed = line.trim();
@@ -48,8 +63,7 @@ export async function GET(request: NextRequest) {
             fullSegmentUrl = `${baseUrl}${trimmed}`;
           }
 
-          const proxyUrl = `/api/uqload/proxy?url=${encodeURIComponent(fullSegmentUrl)}`;
-          return proxyUrl;
+          return `/api/uqload/proxy?url=${encodeURIComponent(fullSegmentUrl)}`;
         })
         .join('\n');
 
