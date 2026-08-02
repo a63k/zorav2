@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function unpackDeanEdwards(p: string, a: number, c: number, k: string[]): string {
+  function eFunc(c: number, a: number): string {
+    const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return (c < a ? '' : eFunc(Math.floor(c / a), a)) + chars[c % a];
+  }
+
+  const mapping: Record<string, string> = {};
+  for (let i = 0; i < c; i++) {
+    const key = a > 1 ? eFunc(i, a) : i.toString();
+    const val = k[i] && k[i].length > 0 ? k[i] : key;
+    mapping[key] = val;
+  }
+
+  return p.replace(/\b\w+\b/g, (w) => mapping[w] || w);
+}
+
 /**
  * Extracts Uqload file code from various link/iframe formats:
  * - <iframe src="https://uqload.is/e/yy70z5uh9jeg?..." ...>
@@ -73,31 +89,51 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
   if (mp4Direct) return mp4Direct[0];
 
   // 2. Parse Dean Edwards packed script eval(function(p,a,c,k,e,d)...)
-  const evalMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{[\s\S]*?\}\('([\s\S]*?)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'([\s\S]*?)'\.split\('\|'\)\)\)/);
+  const evalMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{[\s\S]*?\}\(([\s\S]*?)\)\)/);
 
   if (evalMatch) {
-    const [, , , , kStr] = evalMatch;
-    const k = kStr.split('|');
+    const argsStr = evalMatch[1];
+    const argsMatch = argsStr.match(/['"]([\s\S]*?)['"]\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*['"]([\s\S]*?)['"]\.split\(['"]\|['"]\)/);
 
-    const serverWord = k.find((x) => x.startsWith('strm')) || 'strm4';
-    const hlsWord = k.find((x) => x.startsWith('hls')) || 'hls2';
-    const fileIdL = k.find((x) => x.endsWith('_l')) || `${fileCode}_l`;
-    const realCode = fileIdL.replace('_l', '');
+    if (argsMatch) {
+      const [, p, aStr, cStr, kStr] = argsMatch;
+      const a = parseInt(aStr, 10);
+      const c = parseInt(cStr, 10);
+      const k = kStr.split('|');
 
-    // The HLS master token is the 43-character token in k
-    const tokenT = k.find((x) => x.length >= 40 && !x.startsWith('http')) || k.find((x) => x.length > 25 && !x.startsWith('http')) || '';
-    const paramS = k.find((x) => x.length === 10 && !isNaN(Number(x)) && Number(x) > 1600000000) || '';
-    const paramE = k.find((x) => x === '43200') || '43200';
-    const paramV = k.find((x) => x.length === 6 && !isNaN(Number(x))) || '185745';
+      try {
+        const unpacked = unpackDeanEdwards(p, a, c, k);
 
-    // Extract image folder path (e.g. 02/05413) from response HTML if available
-    const imgMatch = html.match(/strm\d+\.uqload\.is\/i\/(\d+)\/(\d+)\//);
-    const folder1 = imgMatch ? imgMatch[1] : (k.find((x) => x.length === 2 && !isNaN(Number(x))) || '02');
-    const folder2 = imgMatch ? imgMatch[2] : (k.find((x) => x.length === 5 && !isNaN(Number(x))) || '');
+        // Check unpacked JS for stream URLs
+        const unpackedHls = unpacked.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i);
+        if (unpackedHls) return unpackedHls[0];
 
-    if (serverWord && fileIdL && tokenT && paramS) {
-      const constructed = `https://${serverWord}.uqload.is/${hlsWord}/${folder1}/${folder2}/${fileIdL}/master.m3u8?t=${tokenT}&s=${paramS}&e=${paramE}&v=${paramV}&i=0.0&sp=0&fr=${realCode}`;
-      return constructed;
+        const unpackedMp4 = unpacked.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
+        if (unpackedMp4) return unpackedMp4[0];
+      } catch (err) {
+        // Fallback to manual token assembly below
+      }
+
+      const serverWord = k.find((x) => x.startsWith('strm')) || 'strm4';
+      const hlsWord = k.find((x) => x.startsWith('hls')) || 'hls2';
+      const fileIdL = k.find((x) => x.endsWith('_l')) || `${fileCode}_l`;
+      const realCode = fileIdL.replace('_l', '');
+
+      // The HLS master token is the 43-character token in k
+      const tokenT = k.find((x) => x.length >= 40 && !x.startsWith('http')) || k.find((x) => x.length > 25 && !x.startsWith('http')) || '';
+      const paramS = k.find((x) => x.length === 10 && !isNaN(Number(x)) && Number(x) > 1600000000) || '';
+      const paramE = k.find((x) => x === '43200') || '43200';
+      const paramV = k.find((x) => x.length === 6 && !isNaN(Number(x))) || '185745';
+
+      // Extract image folder path (e.g. 02/05413) from response HTML if available
+      const imgMatch = html.match(/strm\d+\.uqload\.is\/i\/(\d+)\/(\d+)\//);
+      const folder1 = imgMatch ? imgMatch[1] : (k.find((x) => x.length === 2 && !isNaN(Number(x))) || '02');
+      const folder2 = imgMatch ? imgMatch[2] : (k.find((x) => x.length === 5 && !isNaN(Number(x))) || '');
+
+      if (serverWord && fileIdL && tokenT && paramS) {
+        const constructed = `https://${serverWord}.uqload.is/${hlsWord}/${folder1}/${folder2}/${fileIdL}/master.m3u8?t=${tokenT}&s=${paramS}&e=${paramE}&v=${paramV}&i=0.0&sp=0&fr=${realCode}`;
+        return constructed;
+      }
     }
   }
 
