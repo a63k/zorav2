@@ -453,19 +453,29 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* MP4 Host Link Input */}
+              {/* MP4 / Uqload Host Link Input */}
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
-                  Lien Fichier MP4 (Host URL)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
+                    Lien Vidéo (Uqload ou Direct MP4/HLS)
+                  </label>
+                  {mp4UrlInput.includes('uqload') && (
+                    <span className="text-[10px] font-bold text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/40">
+                      Détection Uqload
+                    </span>
+                  )}
+                </div>
                 <input
                   type="url"
                   value={mp4UrlInput}
                   onChange={(e) => setMp4UrlInput(e.target.value)}
-                  placeholder="https://mon-hebergeur.com/video.mp4"
+                  placeholder="https://uqload.is/embed-yil2pu24ols0.html ou https://.../video.mp4"
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   required
                 />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Les liens Uqload (<code className="text-purple-300">https://uqload.is/embed-...</code>) seront automatiquement extraits pour être joués en natif sans aucune publicité.
+                </p>
               </div>
 
               <button
@@ -473,7 +483,7 @@ export default function AdminPage() {
                 className="w-full py-3 rounded-xl bg-zora-gradient hover:opacity-95 text-white font-extrabold text-sm shadow-xl shadow-purple-500/30 transition-all flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                <span>Enregistrer le Lien MP4</span>
+                <span>Enregistrer le LienVidéo</span>
               </button>
 
             </form>
