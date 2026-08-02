@@ -25,20 +25,18 @@ enum JobStatus {
 }
 
 model MediaLink {
-  id              String   @id @default(uuid())
-  tmdbId          Int      @map("tmdb_id")
-  mediaType       String   @map("media_type")
-  seasonNumber    Int?     @map("season_number")
-  episodeNumber   Int?     @map("episode_number")
-  title           String
-  posterPath      String?  @map("poster_path")
-  backdropPath    String?  @map("backdrop_path")
-  mp4Url          String   @map("mp4_url")
-  fileHash        String?  @map("file_hash")
-  bunnyLibraryId  String?  @map("bunny_library_id")
-  bunnyVideoId    String?  @map("bunny_video_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  tmdbId        Int      @map("tmdb_id")
+  mediaType     String   @map("media_type")
+  seasonNumber  Int?     @map("season_number")
+  episodeNumber Int?     @map("episode_number")
+  title         String
+  posterPath    String?  @map("poster_path")
+  backdropPath  String?  @map("backdrop_path")
+  mp4Url        String   @map("mp4_url")
+  fileHash      String?  @map("file_hash")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@unique([tmdbId, mediaType, seasonNumber, episodeNumber], name: "unique_media_target")
   @@map("media_links")
@@ -121,22 +119,20 @@ model Episode {
 }
 
 model VideoProvider {
-  id             String   @id @default(uuid())
-  movieId        String?  @map("movie_id")
-  episodeId      String?  @map("episode_id")
-  providerName   String   @default("BunnyStream") @map("provider_name")
-  bunnyLibraryId String?  @map("bunny_library_id")
-  bunnyVideoId   String?  @map("bunny_video_id")
-  playbackUrl    String   @map("playback_url")
-  hlsUrl         String?  @map("hls_url")
-  directMp4Url   String?  @map("direct_mp4_url")
-  resolution     String?
-  fileSize       BigInt?  @map("file_size")
-  fileHash       String?  @map("file_hash")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  movieId      String?  @map("movie_id")
+  episodeId    String?  @map("episode_id")
+  providerName String   @default("Direct") @map("provider_name")
+  playbackUrl  String   @map("playback_url")
+  hlsUrl       String?  @map("hls_url")
+  directMp4Url String?  @map("direct_mp4_url")
+  resolution   String?
+  fileSize     BigInt?  @map("file_size")
+  fileHash     String?  @map("file_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  movie          Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  episode        Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  movie   Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
 
   @@map("video_providers")
 }

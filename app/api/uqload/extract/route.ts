@@ -17,14 +17,14 @@ function unpackDeanEdwards(p: string, a: number, c: number, k: string[]): string
 }
 
 /**
- * Extracts file code from Uqload links or iframe tags
+ * Extracts file code from Uqload links, HTML snippets, or iframe tags
  */
 function extractFileCode(rawInput: string): string | null {
   let text = rawInput.trim();
 
   // If full HTML iframe tag is passed, extract src URL first
   const iframeMatch = text.match(/src=["'](https?:\/\/[^"']+)["']/i);
-  if (iframeMatch && iframeMatch[1]) {
+  if (iframeMatch && iframeMatch[1] && !iframeMatch[1].startsWith('blob:')) {
     text = iframeMatch[1];
   }
 
@@ -32,7 +32,7 @@ function extractFileCode(rawInput: string): string | null {
   const codeMatch = text.match(/(?:\/e\/|\/embed-|\/)([a-zA-Z0-9]{8,16})(?:\.html)?/);
   if (codeMatch && codeMatch[1]) {
     const code = codeMatch[1];
-    if (!['uqload', 'embed', 'watch', 'movie', 'tv', 'mediadelivery'].includes(code.toLowerCase())) {
+    if (!['uqload', 'embed', 'watch', 'movie', 'tv'].includes(code.toLowerCase())) {
       return code;
     }
   }
@@ -46,72 +46,10 @@ function extractFileCode(rawInput: string): string | null {
 }
 
 /**
- * Extract stream URL from Bunny Stream embed URLs (mediadelivery.net / b-cdn.net)
- */
-async function extractFromBunnyStream(rawInput: string): Promise<{ streamUrl: string; isHls: boolean; isIframe: boolean } | null> {
-  let url = rawInput.trim();
-
-  const iframeMatch = url.match(/src=["'](https?:\/\/[^"']+)["']/i);
-  if (iframeMatch && iframeMatch[1]) {
-    url = iframeMatch[1];
-  }
-
-  // Direct HLS or MP4 Bunny Stream URL
-  if (url.includes('.m3u8') || url.includes('.mp4')) {
-    return { streamUrl: url, isHls: url.includes('.m3u8'), isIframe: false };
-  }
-
-  // Bunny Stream embed URL: https://iframe.mediadelivery.net/embed/{libraryId}/{videoId}
-  const embedMatch = url.match(/iframe\.mediadelivery\.net\/embed\/(\d+)\/([a-zA-Z0-9\-]+)/);
-  if (embedMatch) {
-    const [, libId, videoId] = embedMatch;
-
-    // Try fetching the embed HTML to find direct .m3u8 playlist
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Referer: url,
-        },
-        next: { revalidate: 0 },
-      });
-
-      if (response.ok) {
-        const html = await response.text();
-        const m3u8Match = html.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i);
-        if (m3u8Match) {
-          return { streamUrl: m3u8Match[0], isHls: true, isIframe: false };
-        }
-
-        const mp4Match = html.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
-        if (mp4Match) {
-          return { streamUrl: mp4Match[0], isHls: false, isIframe: false };
-        }
-      }
-    } catch (err) {
-      // Fallback below
-    }
-
-    // Standard Bunny Stream HLS endpoint pattern
-    const playlistUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}/playlist.m3u8`;
-    return { streamUrl: playlistUrl, isHls: true, isIframe: false };
-  }
-
-  return null;
-}
-
-/**
  * Bulletproof extraction by making POST request to Uqload /dl endpoint
  */
 async function fetchAndExtractFromUqload(fileCode: string): Promise<string | null> {
   const dlUrl = 'https://uqload.is/dl';
-  const formData = new URLSearchParams({
-    op: 'embed',
-    file_code: fileCode,
-    auto: '1',
-    referer: '',
-  });
 
   const response = await fetch(dlUrl, {
     method: 'POST',
@@ -122,6 +60,12 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     },
+    body: new URLSearchParams({
+      op: 'embed',
+      file_code: fileCode,
+      auto: '1',
+      referer: '',
+    }),
     next: { revalidate: 0 },
   });
 
@@ -171,7 +115,7 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
       const fileIdL = k.find((x) => x.endsWith('_l')) || `${fileCode}_l`;
       const realCode = fileIdL.replace('_l', '');
 
-      // Search from the end of array k for the master HLS token (ignores standard JWPlayer method names and preview tokens)
+      // Search from the end of array k for the master HLS token
       const tokenT =
         k
           .slice()
@@ -189,7 +133,7 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
       const paramE = k.find((x) => x === '43200') || '43200';
       const paramV = k.find((x) => x.length === 6 && !isNaN(Number(x))) || '185745';
 
-      // Extract image folder path (e.g. 02/05413) from response HTML if available
+      // Extract image folder path
       const imgMatch = html.match(/strm\d+\.uqload\.is\/i\/(\d+)\/(\d+)\//);
       const folder1 = imgMatch ? imgMatch[1] : (k.find((x) => x.length === 2 && !isNaN(Number(x))) || '02');
       const folder2 = imgMatch ? imgMatch[2] : (k.find((x) => x.length === 5 && !isNaN(Number(x))) || '');
@@ -240,9 +184,20 @@ export async function POST(request: NextRequest) {
 async function processExtraction(rawInput: string) {
   let rawUrl = rawInput.trim();
 
+  // If raw HTML containing an m3u8 or mp4 link was pasted directly
+  const embeddedM3u8 = rawUrl.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i);
+  if (embeddedM3u8 && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+    return NextResponse.json({
+      success: true,
+      streamUrl: embeddedM3u8[0],
+      isHls: true,
+      originalUrl: rawUrl,
+    });
+  }
+
   // Extract src if full HTML iframe tag was pasted
   const iframeMatch = rawUrl.match(/src=["'](https?:\/\/[^"']+)["']/i);
-  if (iframeMatch && iframeMatch[1]) {
+  if (iframeMatch && iframeMatch[1] && !iframeMatch[1].startsWith('blob:')) {
     rawUrl = iframeMatch[1];
   }
 
@@ -256,27 +211,12 @@ async function processExtraction(rawInput: string) {
     });
   }
 
-  // 2. Bunny Stream links (mediadelivery.net / b-cdn.net / bunny)
-  if (rawUrl.includes('mediadelivery.net') || rawUrl.includes('b-cdn.net') || rawUrl.includes('bunny')) {
-    const bunnyRes = await extractFromBunnyStream(rawUrl);
-    if (bunnyRes) {
-      return NextResponse.json({
-        success: true,
-        streamUrl: bunnyRes.streamUrl,
-        isHls: bunnyRes.isHls,
-        isIframe: bunnyRes.isIframe,
-        isBunny: true,
-        originalUrl: rawUrl,
-      });
-    }
-  }
-
-  // 3. Uqload links
+  // 2. Uqload links
   const fileCode = extractFileCode(rawUrl);
 
   if (!fileCode) {
     return NextResponse.json(
-      { success: false, error: 'Lien vidéo non reconnu (Uqload ou Bunny Stream requis).' },
+      { success: false, error: 'Lien vidéo non reconnu (Uqload ou lien vidéo direct requis).' },
       { status: 400 }
     );
   }

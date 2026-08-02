@@ -12,7 +12,9 @@ import {
   Maximize,
   Minimize,
   Loader2,
-  Film,
+  RotateCcw,
+  RotateCw,
+  Settings,
 } from 'lucide-react';
 import Hls from 'hls.js';
 import { verifyStreamToken } from '@/lib/stream-token';
@@ -30,7 +32,7 @@ interface VideoPlayerProps {
   backdropPath?: string | null;
   onNextEpisode?: () => void;
   hasNextEpisode?: boolean;
-  customUrl?: string; // Optional direct Uqload link passed from parent
+  customUrl?: string; // Optional direct Uqload link or stream link passed from parent
 }
 
 export default function VideoPlayer({
@@ -50,7 +52,7 @@ export default function VideoPlayer({
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
 
-  // Uqload Extraction & Stream States
+  // Stream Extraction States
   const [isExtracting, setIsExtracting] = useState(true);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function VideoPlayer({
     }
   }, [tmdbId, mediaType, season, episode]);
 
-  // Load configured media link from Admin and extract Uqload stream automatically
+  // Load stream source & resolve extractors
   useEffect(() => {
     async function loadStreamSource() {
       setIsExtracting(true);
@@ -105,7 +107,14 @@ export default function VideoPlayer({
         return;
       }
 
-      // Automatically extract Uqload link or play direct stream
+      // If direct MP4 or HLS playlist URL
+      if (targetLink.includes('.mp4') || targetLink.includes('.m3u8')) {
+        setActiveStreamUrl(targetLink);
+        setIsExtracting(false);
+        return;
+      }
+
+      // Automatically extract embed/Uqload stream URL
       try {
         const res = await fetch(`/api/uqload/extract?url=${encodeURIComponent(targetLink)}`);
         const data = await res.json();
@@ -113,16 +122,11 @@ export default function VideoPlayer({
         if (data.success && data.streamUrl) {
           setActiveStreamUrl(data.streamUrl);
         } else {
-          // If direct MP4 or fallback
-          if (targetLink.includes('.mp4') || targetLink.includes('.m3u8')) {
-            setActiveStreamUrl(targetLink);
-          } else {
-            setExtractError(data.error || 'Impossible d\'extraire le flux Uqload.');
-            setActiveStreamUrl(null);
-          }
+          setExtractError(data.error || 'Impossible d\'extraire le flux vidéo.');
+          setActiveStreamUrl(null);
         }
       } catch (err: any) {
-        setExtractError('Erreur de connexion au serveur Uqload');
+        setExtractError('Erreur de connexion au serveur d\'extraction');
         setActiveStreamUrl(null);
       } finally {
         setIsExtracting(false);
@@ -158,7 +162,7 @@ export default function VideoPlayer({
     setShowAdModal(false);
   };
 
-  // Initialize HLS.js for native video player when stream URL is ready
+  // Initialize HLS.js or native HTML5 video player
   useEffect(() => {
     if (!activeStreamUrl || !videoRef.current || !isUnlocked) return;
 
@@ -170,9 +174,9 @@ export default function VideoPlayer({
       hlsRef.current = null;
     }
 
-    // Proxy m3u8 through /api/uqload/proxy to prevent CORS issues
+    // Proxy stream through /api/uqload/proxy to bypass CORS & hotlinking checks
     const finalStreamUrl =
-      activeStreamUrl.includes('.m3u8') && activeStreamUrl.includes('uqload')
+      activeStreamUrl.includes('uqload')
         ? `/api/uqload/proxy?url=${encodeURIComponent(activeStreamUrl)}`
         : activeStreamUrl;
 
@@ -216,8 +220,8 @@ export default function VideoPlayer({
         });
       }
     } else {
-      // Direct MP4 video file
-      video.src = activeStreamUrl;
+      // Direct MP4 video stream
+      video.src = finalStreamUrl;
       video.play().catch(() => setIsPlaying(false));
       setIsPlaying(true);
     }
@@ -245,7 +249,7 @@ export default function VideoPlayer({
       setBuffered(bufferedEnd);
     }
 
-    // Save watch history every 3 seconds
+    // Save watch history periodically
     if (dur > 5 && Math.abs(curr - lastSaveTimeRef.current) >= 3) {
       lastSaveTimeRef.current = curr;
       saveWatchProgress({
@@ -288,6 +292,11 @@ export default function VideoPlayer({
     }
   };
 
+  const skipTime = (seconds: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+  };
+
   const toggleMute = () => {
     if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
@@ -322,6 +331,43 @@ export default function VideoPlayer({
       setIsFullscreen(false);
     }
   };
+
+  // Keybindings listener (Space, F, M, Arrows)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['input', 'textarea'].includes((e.target as HTMLElement)?.tagName?.toLowerCase())) return;
+      if (!isUnlocked || !activeStreamUrl) return;
+
+      switch (e.code) {
+        case 'Space':
+        case 'KeyK':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowRight':
+        case 'KeyL':
+          e.preventDefault();
+          skipTime(10);
+          break;
+        case 'ArrowLeft':
+        case 'KeyJ':
+          e.preventDefault();
+          skipTime(-10);
+          break;
+        case 'KeyF':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          toggleMute();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isUnlocked, activeStreamUrl, isPlaying, duration]);
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '00:00';
@@ -379,24 +425,14 @@ export default function VideoPlayer({
           </button>
         </div>
       ) : isExtracting ? (
-        /* LOADING STATE WHILE EXTRACTING UQLOAD STREAM */
+        /* LOADING STATE WHILE EXTRACTING STREAM */
         <div className="relative w-full aspect-video bg-zora-dark flex flex-col items-center justify-center space-y-3 p-6 text-center">
           <div className="w-12 h-12 rounded-2xl bg-zora-gradient p-0.5 animate-pulse shadow-xl shadow-purple-500/30">
             <div className="w-full h-full bg-zora-bg rounded-[14px] flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
             </div>
           </div>
-          <p className="text-xs font-bold text-gray-300">Extraction du flux vidéo Uqload en cours...</p>
-        </div>
-      ) : activeStreamUrl && (activeStreamUrl.includes('mediadelivery.net') || activeStreamUrl.includes('/embed/') || (!activeStreamUrl.includes('.m3u8') && !activeStreamUrl.includes('.mp4'))) ? (
-        /* BUNNY STREAM / EMBED IFRAME PLAYER */
-        <div className="relative w-full aspect-video bg-black overflow-hidden rounded-2xl group/player">
-          <iframe
-            src={activeStreamUrl}
-            className="w-full h-full border-0"
-            allowFullScreen
-            allow="autoplay; encrypted-media; picture-in-picture"
-          />
+          <p className="text-xs font-bold text-gray-300">Extraction et chargement du flux vidéo...</p>
         </div>
       ) : activeStreamUrl ? (
         /* NATIVE AD-FREE ZORA VIDEO PLAYER */
@@ -416,7 +452,7 @@ export default function VideoPlayer({
             playsInline
           />
 
-          {/* Play/Pause Overlay Indicator on Video Center Click */}
+          {/* Play/Pause Overlay Indicator on Center Click */}
           <div
             onClick={togglePlay}
             className={`absolute inset-0 z-10 flex items-center justify-center bg-black/30 transition-opacity cursor-pointer ${
@@ -432,8 +468,8 @@ export default function VideoPlayer({
             </button>
           </div>
 
-          {/* Bottom Player Custom Controls Bar */}
-          <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 pt-8 space-y-2 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300">
+          {/* Bottom Custom Glassmorphism Controls Bar */}
+          <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-4 pt-10 space-y-3 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300">
             {/* Timeline Seekbar */}
             <div className="relative w-full flex items-center group/seekbar">
               {/* Buffer Progress bar */}
@@ -458,17 +494,34 @@ export default function VideoPlayer({
 
             {/* Controls Buttons Row */}
             <div className="flex items-center justify-between text-white text-xs font-semibold">
-              {/* Left Controls: Play, Volume, Time */}
+              {/* Left Controls: Play, Skip 10s, Volume, Time */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
                   className="p-2 rounded-xl hover:bg-white/10 text-white transition-colors"
+                  title={isPlaying ? 'Pause (Espace)' : 'Lecture (Espace)'}
                 >
                   {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white" />}
                 </button>
 
-                <div className="flex items-center gap-2 group/volume">
-                  <button onClick={toggleMute} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <button
+                  onClick={() => skipTime(-10)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Reculer 10s (Flèche Gauche)"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => skipTime(10)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Avancer 10s (Flèche Droite)"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-2 group/volume ml-1">
+                  <button onClick={toggleMute} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors" title="Muet (M)">
                     {isMuted || volume === 0 ? (
                       <VolumeX className="w-4 h-4 text-rose-400" />
                     ) : (
@@ -486,7 +539,7 @@ export default function VideoPlayer({
                   />
                 </div>
 
-                <div className="text-[11px] font-mono text-gray-300">
+                <div className="text-[11px] font-mono text-gray-300 ml-2">
                   <span>{formatTime(currentTime)}</span>
                   <span className="mx-1 text-gray-500">/</span>
                   <span>{formatTime(duration)}</span>
@@ -499,14 +552,15 @@ export default function VideoPlayer({
                 <div className="relative">
                   <button
                     onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-mono font-bold transition-all"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-mono font-bold transition-all"
                   >
-                    {playbackRate}x
+                    <Settings className="w-3.5 h-3.5 text-purple-300" />
+                    <span>{playbackRate}x</span>
                   </button>
 
                   {showSpeedMenu && (
-                    <div className="absolute bottom-10 right-0 z-30 bg-zora-card border border-white/10 rounded-xl p-1.5 shadow-2xl space-y-1 w-24">
-                      {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
+                    <div className="absolute bottom-10 right-0 z-30 bg-zora-card border border-white/10 rounded-xl p-1.5 shadow-2xl space-y-1 w-28 backdrop-blur-xl">
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
                         <button
                           key={rate}
                           onClick={() => changeSpeed(rate)}
@@ -514,7 +568,7 @@ export default function VideoPlayer({
                             playbackRate === rate ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-white/10'
                           }`}
                         >
-                          {rate}x
+                          {rate}x {rate === 1 ? '(Normal)' : ''}
                         </button>
                       ))}
                     </div>
@@ -525,6 +579,7 @@ export default function VideoPlayer({
                 <button
                   onClick={toggleFullscreen}
                   className="p-2 rounded-xl hover:bg-white/10 text-white transition-colors"
+                  title="Plein écran (F)"
                 >
                   {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                 </button>
@@ -555,7 +610,7 @@ export default function VideoPlayer({
           )}
         </div>
       ) : (
-        /* Fallback iframe player */
+        /* Fallback embed player iframe */
         <div
           ref={containerRef}
           className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group/player"

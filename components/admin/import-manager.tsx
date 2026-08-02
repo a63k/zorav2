@@ -31,7 +31,7 @@ export default function ImportManager() {
           </h2>
 
           <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-            Importez des milliers de films et épisodes de séries automatiquement. Le système analyse les noms de fichiers, cherche sur TMDB avec score de confiance, évite les doublons via hash SHA-256 et téléverse les vidéos sur Bunny Stream CDN sans bloquer l'interface.
+            Importez des milliers de films et épisodes de séries automatiquement. Le système analyse les noms de fichiers, cherche sur TMDB avec score de confiance, évite les doublons via hash SHA-256 et enregistre les flux vidéos directement sans bloquer l'interface.
           </p>
         </div>
 

@@ -140,30 +140,6 @@ export default function ImportDropzone({ onFilesQueued }: ImportDropzoneProps) {
             <Film className="w-4 h-4 text-purple-400" />
             <span>Choisir des Fichiers Seuls</span>
           </button>
-
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const res = await fetch('/api/admin/import/bunny-sync', { method: 'POST' });
-                const data = await res.json();
-                if (data.videos && data.videos.length > 0) {
-                  ImportQueueService.addJobs(data.videos);
-                  setLastBatchCount(data.videos.length);
-                  if (onFilesQueued) onFilesQueued(data.videos.length);
-                  setTimeout(() => setLastBatchCount(null), 5000);
-                } else {
-                  alert(data.message || data.error || 'Aucune vidéo trouvée.');
-                }
-              } catch (e: any) {
-                alert('Erreur lors de la synchronisation Bunny: ' + e.message);
-              }
-            }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-pink-600/30 hover:bg-pink-600/50 text-pink-300 font-bold text-xs border border-pink-500/30 transition-all"
-          >
-            <UploadCloud className="w-4 h-4 text-pink-400" />
-            <span>Synchroniser mes Vidéos Déjà sur Bunny Stream</span>
-          </button>
         </div>
 
         {lastBatchCount !== null && (

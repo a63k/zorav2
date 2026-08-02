@@ -1,13 +1,11 @@
 import { parseFilename } from '../parser/filename-parser';
 import { matchTMDbItem } from '../tmdb/tmdb-matcher';
-import { BunnyStreamService } from '../bunny/bunny-stream';
 import { VideoHasherService } from '../hash/video-hasher';
 import { ImportRepositoryService } from '../database/import-repository';
 import { ImportLoggerService } from '../logger/import-logger';
 import { ImportQueueService, ImportJob } from '../queue/import-queue';
 
 export class ImportOrchestrator {
-  private static bunnyService = new BunnyStreamService();
   private static dbRepo = new ImportRepositoryService();
 
   public static initialize() {
@@ -117,69 +115,14 @@ export class ImportOrchestrator {
       return;
     }
 
-    // 4. STEP 4: BUNNY STREAM HANDLING
-    let bunnyVidId: string;
-    let bunnyLibId: string;
-
-    if (job.guid) {
-      // Video is ALREADY uploaded on Bunny Stream!
-      bunnyVidId = job.guid;
-      bunnyLibId = this.bunnyService.getLibraryId() || '713081';
-      ImportQueueService.updateJob(job.id, {
-        status: 'encoding',
-        progress: 80,
-        stepMessage: 'Vidéo Bunny Stream détectée, vérification du flux...',
-      });
-    } else {
-      // Video needs to be created & uploaded to Bunny Stream
-      ImportQueueService.updateJob(job.id, {
-        status: 'uploading',
-        progress: 55,
-        stepMessage: 'Création de la vidéo sur Bunny Stream...',
-      });
-
-      const collectionName = mediaType === 'tv'
-        ? selectedTmdbItem.name || selectedTmdbItem.title || seriesTitle || parsed.cleanTitle
-        : 'Films';
-
-      const collectionId = await this.bunnyService.getOrCreateCollection(collectionName);
-      const titleForBunny = mediaType === 'tv'
-        ? `s${seasonNumber}_e${episodeNumber}`
-        : selectedTmdbItem.title || selectedTmdbItem.name || parsed.cleanTitle;
-
-      const bunnyVid = await this.bunnyService.createVideo(titleForBunny, collectionId);
-      bunnyVidId = bunnyVid.videoId;
-      bunnyLibId = bunnyVid.libraryId;
-
-      if (job.rawFile) {
-        ImportQueueService.updateJob(job.id, {
-          stepMessage: 'Upload binaire en cours vers le CDN Bunny Stream...',
-        });
-
-        const arrayBuffer = await job.rawFile.arrayBuffer();
-        await this.bunnyService.uploadVideoBinary(
-          bunnyVid.libraryId,
-          bunnyVid.videoId,
-          arrayBuffer,
-          (uploadPct) => {
-            const currentTotalProgress = Math.round(55 + (uploadPct * 0.35)); // 55% -> 90%
-            ImportQueueService.updateJob(job.id, {
-              progress: currentTotalProgress,
-              stepMessage: `Upload vers Bunny Stream: ${uploadPct}%`,
-            });
-          }
-        );
-      }
-    }
-
-    // 5. STEP 5: SAVE TO DB & COMPLETE
+    // 4. STEP 4: PREPARE STREAM URL & SAVE TO DATABASE
     ImportQueueService.updateJob(job.id, {
       status: 'encoding',
       progress: 90,
       stepMessage: 'Enregistrement dans la base de données Zora...',
     });
 
-    const bunnyMeta = await this.bunnyService.checkVideoStatus(bunnyLibId, bunnyVidId);
+    const finalMp4Url = job.streamUrl || job.guid || `https://stream.zora.app/video/${job.id}`;
 
     // Save/Update in Database Repository
     await this.dbRepo.upsertMediaRecord({
@@ -190,10 +133,8 @@ export class ImportOrchestrator {
       title: selectedTmdbItem.title || selectedTmdbItem.name || seriesTitle || parsed.cleanTitle,
       posterPath: selectedTmdbItem.poster_path,
       backdropPath: selectedTmdbItem.backdrop_path,
-      mp4Url: bunnyMeta.directMp4Url || bunnyMeta.playbackUrl,
+      mp4Url: finalMp4Url,
       fileHash,
-      bunnyLibraryId: bunnyLibId,
-      bunnyVideoId: bunnyVidId,
     });
 
     ImportLoggerService.success(
@@ -205,7 +146,6 @@ export class ImportOrchestrator {
       status: 'completed',
       progress: 100,
       stepMessage: 'Importation terminée avec succès !',
-      bunnyMeta,
       completedAt: new Date().toISOString(),
     });
   }

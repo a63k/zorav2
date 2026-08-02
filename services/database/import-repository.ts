@@ -11,8 +11,6 @@ export interface ImportMediaRecord {
   backdropPath?: string | null;
   mp4Url: string;
   fileHash?: string;
-  bunnyLibraryId?: string;
-  bunnyVideoId?: string;
 }
 
 export class ImportRepositoryService {
@@ -65,19 +63,16 @@ export class ImportRepositoryService {
       mp4_url: record.mp4Url,
     });
 
-    // If fileHash or Bunny parameters exist, update record in Supabase
-    if (record.fileHash || record.bunnyVideoId) {
+    if (record.fileHash) {
       try {
         await supabase
           .from('media_links')
           .update({
             file_hash: record.fileHash,
-            bunny_library_id: record.bunnyLibraryId,
-            bunny_video_id: record.bunnyVideoId,
           })
           .eq('id', saved.id);
       } catch (e) {
-        // Fallback gracefully if extra column migration is not executed yet
+        // Fallback gracefully
       }
     }
 

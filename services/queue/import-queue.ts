@@ -1,6 +1,5 @@
 import { ParsedFilename } from '../parser/filename-parser';
 import { SmartMatchResponse } from '../tmdb/tmdb-matcher';
-import { BunnyVideoMetadata } from '../bunny/bunny-stream';
 import { TMDBItem } from '@/lib/tmdb';
 
 export type JobStatus =
@@ -31,7 +30,7 @@ export interface ImportJob {
   tmdbMatchResult?: SmartMatchResponse;
   selectedTmdbItem?: TMDBItem;
   fileHash?: string;
-  bunnyMeta?: BunnyVideoMetadata;
+  streamUrl?: string;
   error?: string;
   retryCount: number;
   addedAt: string;
