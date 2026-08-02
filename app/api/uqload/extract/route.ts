@@ -119,8 +119,20 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
       const fileIdL = k.find((x) => x.endsWith('_l')) || `${fileCode}_l`;
       const realCode = fileIdL.replace('_l', '');
 
-      // The HLS master token is the 43-character token in k
-      const tokenT = k.find((x) => x.length >= 40 && !x.startsWith('http')) || k.find((x) => x.length > 25 && !x.startsWith('http')) || '';
+      // Search from the end of array k for the master HLS token (ignores standard JWPlayer method names and preview tokens)
+      const tokenT =
+        k
+          .slice()
+          .reverse()
+          .find(
+            (x) =>
+              x.length >= 25 &&
+              !x.startsWith('http') &&
+              !x.startsWith('0') &&
+              !x.startsWith('1') &&
+              !['fullscreenOrientationLock', 'setCurrentAudioTrack', 'playbackRateControls'].includes(x)
+          ) || '';
+
       const paramS = k.find((x) => x.length === 10 && !isNaN(Number(x)) && Number(x) > 1600000000) || '';
       const paramE = k.find((x) => x === '43200') || '43200';
       const paramV = k.find((x) => x.length === 6 && !isNaN(Number(x))) || '185745';
