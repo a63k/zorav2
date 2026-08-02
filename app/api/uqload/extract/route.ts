@@ -17,11 +17,7 @@ function unpackDeanEdwards(p: string, a: number, c: number, k: string[]): string
 }
 
 /**
- * Extracts Uqload file code from various link/iframe formats:
- * - <iframe src="https://uqload.is/e/yy70z5uh9jeg?..." ...>
- * - https://uqload.is/e/yy70z5uh9jeg
- * - https://uqload.is/embed-yy70z5uh9jeg.html
- * - https://uqload.is/yy70z5uh9jeg.html
+ * Extracts file code from Uqload links or iframe tags
  */
 function extractFileCode(rawInput: string): string | null {
   let text = rawInput.trim();
@@ -36,7 +32,7 @@ function extractFileCode(rawInput: string): string | null {
   const codeMatch = text.match(/(?:\/e\/|\/embed-|\/)([a-zA-Z0-9]{8,16})(?:\.html)?/);
   if (codeMatch && codeMatch[1]) {
     const code = codeMatch[1];
-    if (!['uqload', 'embed', 'watch', 'movie', 'tv'].includes(code.toLowerCase())) {
+    if (!['uqload', 'embed', 'watch', 'movie', 'tv', 'mediadelivery'].includes(code.toLowerCase())) {
       return code;
     }
   }
@@ -44,6 +40,62 @@ function extractFileCode(rawInput: string): string | null {
   const codeSub = text.match(/(?:\/e\/|\/embed-)([a-zA-Z0-9]{8,16})/);
   if (codeSub && codeSub[1]) {
     return codeSub[1];
+  }
+
+  return null;
+}
+
+/**
+ * Extract stream URL from Bunny Stream embed URLs (mediadelivery.net / b-cdn.net)
+ */
+async function extractFromBunnyStream(rawInput: string): Promise<{ streamUrl: string; isHls: boolean; isIframe: boolean } | null> {
+  let url = rawInput.trim();
+
+  const iframeMatch = url.match(/src=["'](https?:\/\/[^"']+)["']/i);
+  if (iframeMatch && iframeMatch[1]) {
+    url = iframeMatch[1];
+  }
+
+  // Direct HLS or MP4 Bunny Stream URL
+  if (url.includes('.m3u8') || url.includes('.mp4')) {
+    return { streamUrl: url, isHls: url.includes('.m3u8'), isIframe: false };
+  }
+
+  // Bunny Stream embed URL: https://iframe.mediadelivery.net/embed/{libraryId}/{videoId}
+  const embedMatch = url.match(/iframe\.mediadelivery\.net\/embed\/(\d+)\/([a-zA-Z0-9\-]+)/);
+  if (embedMatch) {
+    const [, libId, videoId] = embedMatch;
+
+    // Try fetching the embed HTML to find direct .m3u8 playlist
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Referer: url,
+        },
+        next: { revalidate: 0 },
+      });
+
+      if (response.ok) {
+        const html = await response.text();
+        const m3u8Match = html.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i);
+        if (m3u8Match) {
+          return { streamUrl: m3u8Match[0], isHls: true, isIframe: false };
+        }
+
+        const mp4Match = html.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
+        if (mp4Match) {
+          return { streamUrl: mp4Match[0], isHls: false, isIframe: false };
+        }
+      }
+    } catch (err) {
+      // Fallback below
+    }
+
+    // Standard Bunny Stream HLS endpoint pattern
+    const playlistUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}/playlist.m3u8`;
+    return { streamUrl: playlistUrl, isHls: true, isIframe: false };
   }
 
   return null;
@@ -111,7 +163,7 @@ async function fetchAndExtractFromUqload(fileCode: string): Promise<string | nul
         const unpackedMp4 = unpacked.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
         if (unpackedMp4) return unpackedMp4[0];
       } catch (err) {
-        // Fallback to manual token assembly below
+        // Fallback below
       }
 
       const serverWord = k.find((x) => x.startsWith('strm')) || 'strm4';
@@ -162,7 +214,7 @@ export async function GET(request: NextRequest) {
 
   if (!targetUrl) {
     return NextResponse.json(
-      { success: false, error: 'Paramètre "url" requis (ex: /api/uqload/extract?url=https://uqload.is/e/xxx)' },
+      { success: false, error: 'Paramètre "url" requis' },
       { status: 400 }
     );
   }
@@ -185,8 +237,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function processExtraction(rawUrl: string) {
-  // If the raw input is already a direct master.m3u8 or mp4 stream, return it directly!
+async function processExtraction(rawInput: string) {
+  let rawUrl = rawInput.trim();
+
+  // Extract src if full HTML iframe tag was pasted
+  const iframeMatch = rawUrl.match(/src=["'](https?:\/\/[^"']+)["']/i);
+  if (iframeMatch && iframeMatch[1]) {
+    rawUrl = iframeMatch[1];
+  }
+
+  // 1. Direct stream URL (.m3u8 or .mp4)
   if (rawUrl.includes('.m3u8') || (rawUrl.includes('.mp4') && !rawUrl.includes('player_blank'))) {
     return NextResponse.json({
       success: true,
@@ -196,11 +256,27 @@ async function processExtraction(rawUrl: string) {
     });
   }
 
+  // 2. Bunny Stream links (mediadelivery.net / b-cdn.net / bunny)
+  if (rawUrl.includes('mediadelivery.net') || rawUrl.includes('b-cdn.net') || rawUrl.includes('bunny')) {
+    const bunnyRes = await extractFromBunnyStream(rawUrl);
+    if (bunnyRes) {
+      return NextResponse.json({
+        success: true,
+        streamUrl: bunnyRes.streamUrl,
+        isHls: bunnyRes.isHls,
+        isIframe: bunnyRes.isIframe,
+        isBunny: true,
+        originalUrl: rawUrl,
+      });
+    }
+  }
+
+  // 3. Uqload links
   const fileCode = extractFileCode(rawUrl);
 
   if (!fileCode) {
     return NextResponse.json(
-      { success: false, error: 'Code de fichier Uqload introuvable dans le lien fourni.' },
+      { success: false, error: 'Lien vidéo non reconnu (Uqload ou Bunny Stream requis).' },
       { status: 400 }
     );
   }
@@ -212,7 +288,7 @@ async function processExtraction(rawUrl: string) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Le fichier Uqload a expiré ou le flux vidéo est introuvable.',
+          error: 'Le fichier vidéo a expiré ou le flux est introuvable.',
         },
         { status: 404 }
       );
@@ -229,7 +305,7 @@ async function processExtraction(rawUrl: string) {
     return NextResponse.json(
       {
         success: false,
-        error: `Erreur lors de l'extraction Uqload : ${err.message || 'Erreur réseau'}`,
+        error: `Erreur lors de l'extraction vidéo : ${err.message || 'Erreur réseau'}`,
       },
       { status: 500 }
     );

@@ -388,6 +388,16 @@ export default function VideoPlayer({
           </div>
           <p className="text-xs font-bold text-gray-300">Extraction du flux vidéo Uqload en cours...</p>
         </div>
+      ) : activeStreamUrl && (activeStreamUrl.includes('mediadelivery.net') || activeStreamUrl.includes('/embed/') || (!activeStreamUrl.includes('.m3u8') && !activeStreamUrl.includes('.mp4'))) ? (
+        /* BUNNY STREAM / EMBED IFRAME PLAYER */
+        <div className="relative w-full aspect-video bg-black overflow-hidden rounded-2xl group/player">
+          <iframe
+            src={activeStreamUrl}
+            className="w-full h-full border-0"
+            allowFullScreen
+            allow="autoplay; encrypted-media; picture-in-picture"
+          />
+        </div>
       ) : activeStreamUrl ? (
         /* NATIVE AD-FREE ZORA VIDEO PLAYER */
         <div
