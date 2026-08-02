@@ -472,10 +472,10 @@ export default function AdminPage() {
                   )}
                 </div>
                 <input
-                  type="url"
+                  type="text"
                   value={mp4UrlInput}
                   onChange={(e) => setMp4UrlInput(e.target.value)}
-                  placeholder="https://uqload.is/embed-yil2pu24ols0.html ou https://.../video.mp4"
+                  placeholder="https://uqload.is/embed-yil2pu24ols0.html ou code <iframe...>"
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   required
                 />
